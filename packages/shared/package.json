@@ -1,0 +1,7 @@
+{
+  "name": "@gpt-realtime-whisper-live-transcript-redactor/shared",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./src/types.ts",
+  "types": "./src/types.ts"
+}
