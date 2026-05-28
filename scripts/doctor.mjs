@@ -23,6 +23,12 @@ const VENV_UVICORN = resolve(REPO_ROOT, "services/api/.venv/bin/uvicorn");
 const REQUIRED_NODE_MAJOR = 20;
 const REQUIRED_PNPM_MAJOR = 9;
 const REQUIRED_PYTHON_MINOR = 11; // 3.11+
+// Python 3.13 removed the stdlib `audioop` module that
+// `services/api/app/service/audio_decode.py` uses to resample / downmix
+// uploaded WAVs. Until that decoder is rewritten in pure Python the
+// backend must run on 3.11 or 3.12. Tracked in
+// docs/exec-plans/tech-debt-tracker.md.
+const MAX_PYTHON_MINOR_EXCLUSIVE = 13; // i.e. 3.13 and above is rejected
 
 // Required B2 env vars + the exact placeholder strings shipped in
 // .env.example. Keep in sync with services/api/main.py REQUIRED_B2_SETTINGS
@@ -106,34 +112,51 @@ function checkPnpm() {
 
 function checkPython() {
   // Try python3 first (canonical on macOS/Linux), then versioned names that
-  // Homebrew installs (python3.13, python3.12, python3.11), then the bare
-  // python shim (Windows / pyenv). Stop at the first one that satisfies the
-  // minimum version — this avoids false failures on macOS where `python3`
-  // resolves to the system 3.9 even when a newer Homebrew Python is on PATH.
+  // Homebrew installs (python3.12, python3.11), then the bare python shim
+  // (Windows / pyenv). Stop at the first one that satisfies the supported
+  // range — this avoids false failures on macOS where `python3` resolves
+  // to the system 3.9 even when a newer Homebrew Python is on PATH.
+  //
+  // The acceptable range is 3.11 .. 3.12 inclusive. 3.13+ is rejected
+  // because `audio_decode.py` depends on the removed stdlib `audioop`
+  // module — see docs/exec-plans/tech-debt-tracker.md.
   const candidates = [
     "python3",
-    "python3.13",
     "python3.12",
     "python3.11",
     "python",
   ];
+  let tooNew = null; // capture a "found but too new" version for a precise message.
   for (const bin of candidates) {
     const out = tryExec(`${bin} --version`);
     if (!out) continue;
     const v = parseSemver(out);
-    if (v && v.major >= 3 && v.minor >= REQUIRED_PYTHON_MINOR) return; // good
+    if (!v || v.major !== 3) continue;
+    if (v.minor < REQUIRED_PYTHON_MINOR) continue;
+    if (v.minor >= MAX_PYTHON_MINOR_EXCLUSIVE) {
+      tooNew = { bin, version: out };
+      continue;
+    }
+    return; // 3.11 or 3.12 — good.
+  }
+  if (tooNew) {
+    fail(
+      `${tooNew.version} is too new — this sample requires 3.${REQUIRED_PYTHON_MINOR}..3.${MAX_PYTHON_MINOR_EXCLUSIVE - 1}.x`,
+      "Python 3.13 removed the stdlib `audioop` module that `services/api/app/service/audio_decode.py` uses for WAV resampling/downmix. Install Python 3.12 (`brew install python@3.12` or `pyenv install 3.12`) and recreate the venv. Tracked in docs/exec-plans/tech-debt-tracker.md.",
+    );
+    return;
   }
   // Nothing suitable found — report using the first candidate that exists.
   const found = candidates.map((b) => tryExec(`${b} --version`)).find(Boolean);
   if (found) {
     fail(
-      `${found} is too old (need >= 3.${REQUIRED_PYTHON_MINOR})`,
-      `Install Python 3.${REQUIRED_PYTHON_MINOR}+ via Homebrew (\`brew install python@3.12\`) or pyenv (\`pyenv install 3.${REQUIRED_PYTHON_MINOR}\`)`,
+      `${found} is outside the supported range (need >= 3.${REQUIRED_PYTHON_MINOR}, < 3.${MAX_PYTHON_MINOR_EXCLUSIVE})`,
+      `Install Python 3.12 via Homebrew (\`brew install python@3.12\`) or pyenv (\`pyenv install 3.12\`). 3.13+ is unsupported until \`audio_decode.py\` drops its \`audioop\` dependency.`,
     );
   } else {
     fail(
       "Python is not on PATH",
-      `Install Python 3.${REQUIRED_PYTHON_MINOR}+ from https://python.org, via Homebrew (\`brew install python@3.12\`), or pyenv`,
+      `Install Python 3.${REQUIRED_PYTHON_MINOR} or 3.12 from https://python.org, via Homebrew (\`brew install python@3.12\`), or pyenv`,
     );
   }
 }

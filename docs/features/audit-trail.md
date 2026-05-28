@@ -19,11 +19,23 @@ originals are still around.
 |---|---|---|
 | `session.started` | `POST /sessions` accepts | `redaction_modes`, `storage_mode` |
 | `streaming.started` | WebSocket bridge accepts | (empty) |
+| `audio.received` | every ~5 s of audio + once at finalize for the tail | `bytes_received`, `duration_ms_received` |
 | `transcript.completed` | each finalized utterance | `segment_index`, `original_text_sha256` |
 | `redaction.applied` | per segment, only if detections fired | `segment_index`, `count`, `types` |
 | `export.generated` | `POST /sessions/{id}/exports` | `format`, `key`, `size_bytes` |
 | `session.finalized` | bridge finishes finalize | `segment_count`, `detection_count` |
 | `session.errored` | bridge crashes or upstream returns error | `message` |
+
+### `audio.received` cadence
+
+The bridge emits an `audio.received` event after every
+`AUDIO_RECEIVED_EVENT_INTERVAL_BYTES` (~5 seconds of 24 kHz PCM16 mono =
+240 000 bytes) and once more at finalize to capture the tail window.
+A 30-minute session therefore produces ~360 events — coarse enough to
+keep manifests small, fine enough to give an auditor a timeline of when
+audio actually arrived. The aggregate counter
+`manifest.audio_bytes_received` is updated on every chunk and provides
+the session-level rollup that the per-window events do not replace.
 
 ## Schema
 

@@ -25,6 +25,7 @@ from app.runtime import (  # noqa: E402
     health,
     metrics,
     realtime,
+    session_upload,
     sessions,
     upload,
 )
@@ -143,6 +144,7 @@ app.include_router(health.router, tags=["health"])
 app.include_router(upload.router, tags=["upload"])
 app.include_router(files.router, tags=["files"])
 app.include_router(sessions.router, tags=["sessions"])
+app.include_router(session_upload.router, tags=["sessions"])
 app.include_router(exports.router, tags=["exports"])
 app.include_router(glossary.router, tags=["glossary"])
 app.include_router(realtime.router, tags=["realtime"])

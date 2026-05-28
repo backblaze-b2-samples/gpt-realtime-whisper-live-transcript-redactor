@@ -19,7 +19,9 @@ Stream microphone audio through OpenAI's GPT-Realtime-Whisper, redact PII / secr
 
 ## Quick Start
 
-You need: Node.js >= 20, pnpm >= 9, Python >= 3.11, a free **[Backblaze B2 account](https://www.backblaze.com/sign-up/ai-cloud-storage?utm_source=github&utm_medium=referral&utm_campaign=ai_artifacts&utm_content=b2ai-gpt-realtime-whisper-live-transcript-redactor)**, and an **[OpenAI API key](https://platform.openai.com/api-keys)**.
+You need: Node.js >= 20, pnpm >= 9, Python >= 3.11, < 3.13[^audioop], a free **[Backblaze B2 account](https://www.backblaze.com/sign-up/ai-cloud-storage?utm_source=github&utm_medium=referral&utm_campaign=ai_artifacts&utm_content=b2ai-gpt-realtime-whisper-live-transcript-redactor)**, and an **[OpenAI API key](https://platform.openai.com/api-keys)**.
+
+[^audioop]: The WAV decoder in `services/api/app/service/audio_decode.py` depends on the stdlib `audioop` module, which was removed in Python 3.13. Tracking the upgrade is on the tech-debt tracker.
 
 ```bash
 git clone https://github.com/backblaze-b2-samples/gpt-realtime-whisper-live-transcript-redactor.git
@@ -77,7 +79,7 @@ pnpm dev
 | `OPENAI_REALTIME_MODEL` | no | Defaults to `gpt-realtime-whisper` |
 | `REDACTION_DEFAULT_MODES` | no | Comma list of `pii,secrets,glossary`; per-session toggles override |
 | `SESSION_STORE_ORIGINALS_DEFAULT` | no | `true` (dev default) / `false` (production recommended) |
-| `API_CORS_ORIGINS` | no | Comma list of allowed origins for the API (defaults cover Next on :3000) |
+| `API_CORS_ORIGINS` | no | Comma list of allowed origins for the API (defaults: `http://localhost:3000,http://localhost:3001`) |
 
 See `.env.example` for the full annotated file.
 
@@ -98,7 +100,7 @@ See `.env.example` for the full annotated file.
 
 - TypeScript, Next.js 16, React 19, Tailwind v4, shadcn/ui, Recharts
 - TanStack Query — caching, dedup, retry, stale-while-revalidate for every fetch
-- Python 3.11+, FastAPI, boto3, Pydantic v2, `websockets` (OpenAI Realtime upstream)
+- Python 3.11+ (< 3.13 — see Quick Start footnote), FastAPI, boto3, Pydantic v2, `websockets` (OpenAI Realtime upstream)
 - Backblaze B2 (S3-compatible object storage)
 - OpenAI Realtime API (transcription only, no LLM redaction in v1)
 - pnpm workspaces (monorepo)

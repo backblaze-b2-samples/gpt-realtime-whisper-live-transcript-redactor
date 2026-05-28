@@ -195,3 +195,69 @@ export function realtimeSessionUrl(sessionId: string): string {
   const base = API_BASE.replace(/^http/, "ws");
   return `${base}/ws/sessions/${sessionId}`;
 }
+
+/**
+ * Pipeline-mode file upload — streams the uploaded audio through the
+ * same realtime stack `/record` uses and resolves with the finalized
+ * session id when the bundle is durable.
+ *
+ * v1 accepts WAV only (see `service/audio_decode.py`). Progress callback
+ * reports XHR upload progress; the server-side realtime drain happens
+ * after the bytes land, so the progress hits 100% before the response
+ * arrives.
+ */
+export interface SessionUploadResponse {
+  session_id: string;
+  segment_count: number;
+  detection_count: number;
+  duration_ms_received: number;
+}
+
+export function uploadSessionAudio(
+  file: File,
+  onProgress?: (percent: number) => void,
+): Promise<SessionUploadResponse> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    const formData = new FormData();
+    formData.append("file", file);
+
+    xhr.upload.addEventListener("progress", (e) => {
+      if (e.lengthComputable && onProgress) {
+        onProgress(Math.round((e.loaded / e.total) * 100));
+      }
+    });
+
+    xhr.addEventListener("load", () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          resolve(JSON.parse(xhr.responseText));
+        } catch {
+          reject(new ApiError("Malformed server response", xhr.status));
+        }
+      } else {
+        try {
+          const body = JSON.parse(xhr.responseText);
+          reject(
+            new ApiError(
+              body.detail || `Upload failed: ${xhr.status}`,
+              xhr.status,
+            ),
+          );
+        } catch {
+          reject(new ApiError(`Upload failed: ${xhr.status}`, xhr.status));
+        }
+      }
+    });
+
+    xhr.addEventListener("error", () =>
+      reject(new ApiError("Network error — check your connection", 0)),
+    );
+    xhr.addEventListener("abort", () =>
+      reject(new ApiError("Upload aborted", 0)),
+    );
+
+    xhr.open("POST", `${API_BASE}/sessions/upload`);
+    xhr.send(formData);
+  });
+}

@@ -25,6 +25,22 @@ from app.types.transcripts import TranscriptSegment
 
 logger = logging.getLogger(__name__)
 
+# OpenAI Realtime requires 24 kHz mono PCM16 — 2 bytes per sample, so
+# 1 second of audio = 48,000 bytes. Used to convert byte counters to ms.
+PCM16_BYTES_PER_SECOND = 24_000 * 2
+
+# `audio.received` audit-event emission cadence. Emit one event per ~5
+# seconds of audio so the manifest event log gives an auditor a coarse
+# timeline of when audio actually arrived, without ballooning the log
+# (a 30-minute session emits ~360 events). A final `audio.received` is
+# always appended on `finalize` so the last partial window is recorded.
+AUDIO_RECEIVED_EVENT_INTERVAL_BYTES = 5 * PCM16_BYTES_PER_SECOND
+
+
+def _bytes_to_duration_ms(byte_count: int) -> int:
+    """Convert PCM16 24 kHz mono byte count to wall-clock milliseconds."""
+    return (byte_count * 1000) // PCM16_BYTES_PER_SECOND
+
 
 class RealtimeSessionState:
     """Mutable state held by the bridge for one active session."""
@@ -39,16 +55,50 @@ class RealtimeSessionState:
             load_glossary() if "glossary" in self.manifest.redaction_modes else None
         )
         self._next_index = 0
+        # Bytes received since the last `audio.received` audit event. Used to
+        # throttle the per-window audit events without losing the rollup
+        # (`manifest.audio_bytes_received` keeps the cumulative count).
+        self._bytes_since_last_audio_event = 0
         # Append the streaming-start audit event in-memory; persisted on finalize.
         self.manifest.events.append(
             AuditEvent(type="streaming.started", at=datetime.now(UTC), detail={})
         )
 
+    def _emit_audio_received(self) -> None:
+        """Snapshot current byte / ms counters as an `audio.received` event."""
+        self.manifest.events.append(
+            AuditEvent(
+                type="audio.received",
+                at=datetime.now(UTC),
+                detail={
+                    "bytes_received": self.manifest.audio_bytes_received,
+                    "duration_ms_received": _bytes_to_duration_ms(
+                        self.manifest.audio_bytes_received
+                    ),
+                },
+            )
+        )
+        self._bytes_since_last_audio_event = 0
+
     def append_audio_chunk(self, chunk: bytes) -> None:
-        """Buffer raw PCM if originals are being stored; always track bytes."""
-        self.manifest.audio_bytes_received += len(chunk)
+        """Buffer raw PCM if originals are being stored; always track bytes.
+
+        Aggregate counters (`manifest.audio_bytes_received`) are updated on
+        every chunk. An `audio.received` audit event is emitted every
+        ~5 s of audio so the manifest event log carries an auditable
+        timeline alongside the rollup. The event cadence is intentionally
+        coarse — see `AUDIO_RECEIVED_EVENT_INTERVAL_BYTES`.
+        """
+        size = len(chunk)
+        self.manifest.audio_bytes_received += size
+        self._bytes_since_last_audio_event += size
         if self.manifest.store_original_audio:
             self.audio_bytes.extend(chunk)
+        if (
+            self._bytes_since_last_audio_event
+            >= AUDIO_RECEIVED_EVENT_INTERVAL_BYTES
+        ):
+            self._emit_audio_received()
 
     def add_completed_segment(self, text: str, duration_ms: int) -> dict:
         """Run redaction on a finalized utterance and emit the UI payload.
@@ -128,6 +178,14 @@ class RealtimeSessionState:
 
     def finalize(self, audio_extension: str | None = "webm") -> SessionManifest:
         """Persist redacted bundle (+ originals on opt-in) and seal the manifest."""
+        # Always emit a closing `audio.received` event so the last partial
+        # window (the tail of the stream that didn't reach the interval
+        # threshold) shows up in the manifest's audit timeline. Skip when
+        # no audio at all was received — the streaming.started event
+        # already documents a zero-byte session.
+        if self._bytes_since_last_audio_event > 0:
+            self._emit_audio_received()
+
         now = datetime.now(UTC)
         sid = self.manifest.session_id
 
