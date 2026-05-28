@@ -26,6 +26,7 @@ from app.types.sessions import (
     SessionStats,
     SessionSummary,
 )
+from app.types.transcripts import Transcript
 
 logger = logging.getLogger(__name__)
 
@@ -116,6 +117,21 @@ def get_session(session_id: str) -> SessionManifest:
     if manifest is None:
         raise SessionError("Session not found", status_code=404)
     return manifest
+
+
+def get_redacted_transcript(session_id: str) -> Transcript:
+    """Return the redacted transcript bundle for the detail view.
+
+    Raises `SessionError(404)` via `get_session` if the session doesn't
+    exist. A finalized session always has a redacted transcript, but a
+    session with zero completed segments writes an empty one — return an
+    empty `Transcript` rather than 404 so the detail page renders cleanly.
+    """
+    get_session(session_id)
+    raw = b2_sessions.get_transcript_redacted(session_id)
+    if raw is None:
+        return Transcript(session_id=session_id, variant="redacted", segments=[])
+    return Transcript(**raw)
 
 
 def list_session_summaries(limit: int = 100) -> list[SessionSummary]:

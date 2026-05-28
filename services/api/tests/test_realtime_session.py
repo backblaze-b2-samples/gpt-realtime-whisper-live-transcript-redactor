@@ -7,6 +7,7 @@ import pytest
 
 from app.service.realtime_session import (
     AUDIO_RECEIVED_EVENT_INTERVAL_BYTES,
+    PCM16_BYTES_PER_SECOND,
     RealtimeSessionState,
 )
 from app.types.sessions import AuditEvent, SessionManifest
@@ -49,6 +50,16 @@ def state(monkeypatch) -> RealtimeSessionState:
     monkeypatch.setattr(mod.b2_sessions, "put_redactions", lambda _sid, _p: None)
     monkeypatch.setattr(
         mod.b2_sessions, "put_audio", lambda _sid, _ext, _data: "key"
+    )
+
+    # The PII layer is LLM-backed; stub the network call so the state
+    # machine tests stay offline and deterministic.
+    async def _no_pii(_text: str):
+        return []
+
+    monkeypatch.setattr(
+        "app.service.redaction_detectors.openai_redactor.detect_pii_entities",
+        _no_pii,
     )
     return RealtimeSessionState(fake.session_id)
 
@@ -96,6 +107,29 @@ def test_finalize_does_not_double_emit_when_window_just_closed(state):
     state.finalize(audio_extension="webm")
     events = _audio_received_events(state)
     assert len(events) == 1
+
+
+async def test_duration_derived_from_audio_bytes(state):
+    # The Realtime API gives no per-segment duration; the manifest's
+    # duration_ms must instead track the wall-clock position of received
+    # audio. 10 s of PCM16 -> a 10 s segment and a 10 s session.
+    state.append_audio_chunk(b"\x00" * (PCM16_BYTES_PER_SECOND * 10))
+    await state.add_completed_segment("hello there")
+    assert state.manifest.duration_ms == 10_000
+    seg = state.redacted_segments[0]
+    assert seg.started_at_ms == 0
+    assert seg.ended_at_ms == 10_000
+
+
+async def test_multiple_segments_advance_timeline(state):
+    state.append_audio_chunk(b"\x00" * (PCM16_BYTES_PER_SECOND * 4))
+    await state.add_completed_segment("first")
+    state.append_audio_chunk(b"\x00" * (PCM16_BYTES_PER_SECOND * 6))
+    await state.add_completed_segment("second")
+    first, second = state.redacted_segments
+    assert (first.started_at_ms, first.ended_at_ms) == (0, 4_000)
+    assert (second.started_at_ms, second.ended_at_ms) == (4_000, 10_000)
+    assert state.manifest.duration_ms == 10_000
 
 
 def test_aggregate_counter_survives_for_rollup(state):

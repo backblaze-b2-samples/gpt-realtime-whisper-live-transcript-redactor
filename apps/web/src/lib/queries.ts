@@ -13,6 +13,7 @@ import {
   getSession,
   getSessionActivity,
   getSessionStats,
+  getSessionTranscript,
   getUploadActivity,
   listSessions,
   saveGlossary,
@@ -33,6 +34,7 @@ export const qk = {
   preview: (key: string) => [...qk.all, "preview", key] as const,
   sessions: (limit?: number) => [...qk.all, "sessions", limit ?? 100] as const,
   session: (id: string) => [...qk.all, "session", id] as const,
+  transcript: (id: string) => [...qk.all, "transcript", id] as const,
   sessionStats: () => [...qk.all, "sessionStats"] as const,
   sessionActivity: (days: number) =>
     [...qk.all, "sessionStats", "activity", days] as const,
@@ -87,6 +89,14 @@ export function useSession(id: string | undefined) {
   return useQuery({
     queryKey: qk.session(id ?? ""),
     queryFn: () => getSession(id as string),
+    enabled: !!id,
+  });
+}
+
+export function useSessionTranscript(id: string | undefined) {
+  return useQuery({
+    queryKey: qk.transcript(id ?? ""),
+    queryFn: () => getSessionTranscript(id as string),
     enabled: !!id,
   });
 }

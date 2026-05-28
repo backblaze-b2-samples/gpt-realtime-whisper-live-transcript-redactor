@@ -21,9 +21,11 @@ from app.config import settings
 
 logger = logging.getLogger(__name__)
 
-# OpenAI Realtime requires 24kHz mono PCM16 input.
+# OpenAI Realtime requires 24kHz mono PCM16 input. The GA API expresses the
+# format as a MIME-typed object (`{"type": "audio/pcm", "rate": 24000}`)
+# rather than the beta-era `"pcm16"` string.
 INPUT_SAMPLE_RATE = 24000
-INPUT_FORMAT = "pcm16"
+INPUT_FORMAT = "audio/pcm"
 
 
 @dataclass
@@ -60,30 +62,48 @@ class OpenAIRealtimeClient:
 
     def __init__(self, model: str | None = None) -> None:
         self.model = model or settings.openai_realtime_model
-        self._ws: websockets.WebSocketClientProtocol | None = None
+        self._ws: websockets.ClientConnection | None = None
 
     async def __aenter__(self) -> OpenAIRealtimeClient:
         if not settings.openai_api_key:
             raise RuntimeError(
                 "OPENAI_API_KEY is not configured — realtime features disabled"
             )
-        url = f"{settings.openai_realtime_url}?model={self.model}"
+        # GA transcription sessions connect with `intent=transcription` (no
+        # speech-to-speech model in the query string — the transcription model
+        # is set in the session payload below) and must NOT send the beta
+        # `OpenAI-Beta: realtime=v1` header, which now triggers
+        # `beta_api_shape_disabled`.
+        url = f"{settings.openai_realtime_url}?intent=transcription"
         headers = {
             "Authorization": f"Bearer {settings.openai_api_key}",
-            "OpenAI-Beta": "realtime=v1",
             "User-Agent": "b2ai-gpt-realtime-whisper-live-transcript-redactor",
         }
-        self._ws = await websockets.connect(url, extra_headers=headers)
-        # Configure the session for transcription-only use.
+        self._ws = await websockets.connect(url, additional_headers=headers)
+        # Configure the session for transcription-only use. The GA shape nests
+        # input config under `session.audio.input` and tags the session
+        # `type: "transcription"`.
+        #
+        # NOTE: `gpt-realtime-whisper` does not support server-side turn
+        # detection ("Turn detection is not supported for this transcription
+        # model"), so we omit `turn_detection` and rely on explicit
+        # `commit()` calls (the bridge commits on `stop`) to flush the input
+        # buffer for transcription.
         await self._ws.send(
             json.dumps(
                 {
                     "type": "session.update",
                     "session": {
-                        "modalities": ["text"],
-                        "input_audio_format": INPUT_FORMAT,
-                        "input_audio_transcription": {"model": self.model},
-                        "turn_detection": {"type": "server_vad"},
+                        "type": "transcription",
+                        "audio": {
+                            "input": {
+                                "format": {
+                                    "type": INPUT_FORMAT,
+                                    "rate": INPUT_SAMPLE_RATE,
+                                },
+                                "transcription": {"model": self.model},
+                            }
+                        },
                     },
                 }
             )

@@ -3,9 +3,18 @@
 
 ## Purpose
 
-Run three deterministic detectors against every finalized transcript
-segment and substitute `[REDACTED:<TYPE>]` placeholders before the
-redacted variant is persisted or shown to the user.
+Run three detector layers against every finalized transcript segment and
+substitute `[REDACTED:<TYPE>]` placeholders before the redacted variant
+is persisted or shown to the user.
+
+The `pii` layer is **LLM-backed**; `secrets` and `glossary` are
+deterministic regex. This split is deliberate: the input is transcribed
+*speech*, where PII arrives as natural language — a spoken name, "john at
+example dot com", a spelled-out card number — that regex cannot match,
+and regex fundamentally cannot recognize a person's name at all.
+Structured secrets (API keys, tokens) and operator-defined glossary terms
+*do* appear as exact strings, so regex stays the right, cheaper tool
+there.
 
 ## Used By
 
@@ -15,23 +24,40 @@ redacted variant is persisted or shown to the user.
 
 ## Core Files
 
-- `services/api/app/service/redaction.py` — orchestrator (dedupe overlaps, substitute spans, build manifest)
-- `services/api/app/service/redaction_detectors.py` — three detectors
+- `services/api/app/service/redaction.py` — orchestrator (dedupe overlaps, substitute spans, build manifest); `redact_segment` is **async** because the PII layer makes a network call
+- `services/api/app/service/redaction_detectors.py` — detectors (`detect_pii_llm`, `detect_secrets`, `detect_glossary`)
+- `services/api/app/repo/openai_redactor.py` — OpenAI chat-completions adapter for PII extraction
 - `services/api/app/types/redaction.py` — Pydantic models
-- `services/api/tests/test_redaction.py` — unit tests
+- `services/api/tests/test_redaction.py` — unit tests (PII layer stubbed)
 
 ## Detectors
 
-### Layer 1 — PII (regex)
+### Layer 1 — PII (LLM)
 
-| Type | Severity | Notes |
+`detect_pii_llm` sends the finalized segment to a small chat model
+(`REDACTION_PII_MODEL`, default `gpt-4o-mini`) via
+`repo/openai_redactor.py`. The model returns PII spans **verbatim** as
+JSON; the detector anchors each span to character offsets with an exact
+match (every occurrence) and emits `Detection`s with `detector="pii"`.
+Spans the model paraphrases and that can't be located are dropped — we
+never redact a range we can't anchor in the original text.
+
+| Type | Typical severity | Examples it catches |
 |---|---|---|
-| `email` | medium | Standard local-part@domain |
-| `phone` | medium | US + international E.164 |
-| `ipv4`, `ipv6` | medium | |
-| `mac_address` | medium | Standard colon-separated form |
-| `credit_card` | high | Luhn-checked; non-conforming 16-digit runs are ignored |
-| `ssn` | high | 3-2-4 dashed shape |
+| `name` | medium–high | "John Smith", spoken plainly |
+| `phone` | medium | "five five five one two three…", "555-123-4567" |
+| `email` | medium | "john at example dot com", `john@example.com` |
+| `address` | medium | "12 Oak Street, Springfield" |
+| `date_of_birth` | high | "March 3rd 1990" |
+| `government_id` | high | SSN, passport, driver's license (however spoken) |
+| `financial` | high | card / account numbers, spelled out or not |
+| `credentials` | high | spoken passwords / PINs |
+
+Failure handling: the call **fails open** to "no PII" (logged) on missing
+key, timeout, or upstream error — a redaction *miss* is visible in the
+audit trail, whereas raising would abort finalize and lose the whole
+transcript bundle. The per-segment call is bounded by
+`REDACTION_PII_TIMEOUT_S` (default 15s).
 
 ### Layer 2 — Secrets (regex)
 
@@ -118,14 +144,18 @@ override the env-var default in either direction.
 
 ## v2 roadmap
 
-- LLM-based redaction for names that aren't in standard PII patterns
 - Per-deployment severity overrides for glossary terms
 - Diarization-aware redaction (drop entire speaker turns)
+- Batch/streaming PII extraction to lower per-segment latency on
+  high-turn-count sessions
 
 ## Verification
 
 - Test files: `services/api/tests/test_redaction.py`
-- Pass criteria: emails, SSNs, AWS keys, glossary terms all redacted; Luhn-invalid CC patterns NOT redacted; disabled modes do nothing
+- Pass criteria: stubbed PII entities are anchored and redacted (incl.
+  spoken-form spans and every occurrence); AWS keys + glossary terms
+  redacted by the regex layers; secrets-only mode never invokes the LLM;
+  disabled modes do nothing
 - Quick verify: `pnpm test:api`
 
 ## Related Docs

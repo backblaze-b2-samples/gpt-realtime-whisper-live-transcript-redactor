@@ -35,11 +35,24 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     openai_realtime_model: str = "gpt-realtime-whisper"
     openai_realtime_url: str = "wss://api.openai.com/v1/realtime"
+    # REST base for the chat-completions call that powers the LLM PII
+    # redaction layer (see below). Same key as realtime.
+    openai_api_base: str = "https://api.openai.com/v1"
 
     # Default redaction layers applied on /record when the user hasn't
     # explicitly customized them. Comma-separated subset of
     # {pii, secrets, glossary}.
     redaction_default_modes: str = "pii,secrets,glossary"
+
+    # The `pii` layer is LLM-backed, not regex. Spoken transcripts render
+    # PII as natural language — names, "john at example dot com",
+    # spelled-out card numbers — which deterministic patterns never match,
+    # so PII extraction is delegated to a small chat model. `secrets` and
+    # `glossary` remain deterministic regex layers (see
+    # service/redaction_detectors.py). Set the model + a hard per-segment
+    # timeout so a slow upstream can never block session finalize.
+    redaction_pii_model: str = "gpt-4o-mini"
+    redaction_pii_timeout_s: float = 15.0
 
     # Storage default. When true (v1 default — convenient for dev testing
     # so the original audio + transcript can be replayed and compared

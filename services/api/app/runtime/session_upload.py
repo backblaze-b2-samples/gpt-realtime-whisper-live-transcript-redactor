@@ -82,7 +82,7 @@ async def _drain_until_completed(
         if isinstance(evt, TranscriptDelta):
             continue
         if isinstance(evt, TranscriptCompleted):
-            state.add_completed_segment(evt.text, duration_ms=0)
+            await state.add_completed_segment(evt.text)
         elif isinstance(evt, RealtimeError):
             logger.warning("Realtime upstream error during /sessions/upload: %s", evt.message)
 

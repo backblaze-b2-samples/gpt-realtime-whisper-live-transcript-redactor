@@ -10,7 +10,7 @@ row links to `/sessions/[id]` for the full split-pane detail view.
 ## Used By
 
 - UI: `/sessions`, `/sessions/[id]`
-- API: `GET /sessions`, `GET /sessions/stats`, `GET /sessions/stats/activity`, `GET /sessions/{id}`, `DELETE /sessions/{id}`
+- API: `GET /sessions`, `GET /sessions/stats`, `GET /sessions/stats/activity`, `GET /sessions/{id}`, `GET /sessions/{id}/transcript`, `DELETE /sessions/{id}`
 
 ## Core Files
 
@@ -49,6 +49,16 @@ Per the skill's non-negotiable contract, both routes ship together.
 The storage-mode badge uses these last two booleans rather than trusting
 the manifest's stored mode — they tell you what is **actually** in B2
 right now, which is the audit-correct answer.
+
+## Detail-view transcript preview
+
+`/sessions/[id]` fetches the redacted transcript via
+`GET /sessions/{id}/transcript` (`useSessionTranscript`) and renders the
+segments in a "Redacted transcript" card. The endpoint returns an empty
+`Transcript` (not a 404) for a session that produced no completed
+segments, so the panel degrades to an empty-state message. Only the
+**redacted** variant is exposed here — the original transcript, when
+stored, is reachable through `/files`, never the library detail view.
 
 ## Stats
 

@@ -1,54 +1,105 @@
-"""Unit tests for the three-layer redaction engine."""
+"""Unit tests for the redaction engine.
 
+The `pii` layer is LLM-backed, so these tests stub the OpenAI call
+(`openai_redactor.detect_pii_entities`) with canned entities and assert
+the service maps spans -> offsets -> `[REDACTED:TYPE]` correctly. The
+`secrets` and `glossary` layers are deterministic regex and are tested
+against real input.
+"""
+
+from app.repo import openai_redactor
+from app.repo.openai_redactor import PiiEntity
 from app.service.redaction import redact_segment
 from app.types.glossary import Glossary, GlossaryTerm
 
+_PII_PATH = "app.service.redaction_detectors.openai_redactor.detect_pii_entities"
 
-def test_pii_email_detected():
-    result = redact_segment(
-        "ping me at alex@example.com later",
+
+def _stub_pii(monkeypatch, entities: list[PiiEntity]):
+    async def _impl(_text: str) -> list[PiiEntity]:
+        return entities
+
+    monkeypatch.setattr(_PII_PATH, _impl)
+
+
+async def test_pii_entity_redacted(monkeypatch):
+    _stub_pii(
+        monkeypatch,
+        [PiiEntity(text="John Smith", type="name", severity="high")],
+    )
+    result = await redact_segment(
+        "please call John Smith back", segment_index=0, modes=["pii"]
+    )
+    assert "[REDACTED:NAME]" in result.redacted_text
+    assert "John Smith" not in result.redacted_text
+    name = [d for d in result.detections if d.type == "name"]
+    assert name and name[0].severity == "high"
+    assert name[0].detector == "pii"
+
+
+async def test_pii_spoken_email_redacted(monkeypatch):
+    # The model returns the natural-language span verbatim; we anchor it.
+    _stub_pii(
+        monkeypatch,
+        [PiiEntity(text="john at example dot com", type="email", severity="medium")],
+    )
+    result = await redact_segment(
+        "reach me at john at example dot com thanks",
         segment_index=0,
         modes=["pii"],
     )
     assert "[REDACTED:EMAIL]" in result.redacted_text
-    assert any(d.type == "email" for d in result.detections)
-    assert all(d.severity in ("low", "medium", "high") for d in result.detections)
+    assert "john at example dot com" not in result.redacted_text
 
 
-def test_pii_ssn_high_severity():
-    result = redact_segment(
-        "the ssn is 123-45-6789, ok?",
+async def test_pii_all_occurrences_redacted(monkeypatch):
+    _stub_pii(
+        monkeypatch,
+        [PiiEntity(text="Acme Corp", type="name", severity="medium")],
+    )
+    result = await redact_segment(
+        "Acme Corp called, then Acme Corp emailed",
         segment_index=0,
         modes=["pii"],
     )
-    assert "[REDACTED:SSN]" in result.redacted_text
-    high = [d for d in result.detections if d.type == "ssn"]
-    assert high and high[0].severity == "high"
+    assert result.redacted_text.count("[REDACTED:NAME]") == 2
 
 
-def test_pii_credit_card_luhn_filtered():
-    """A 16-digit string that doesn't pass Luhn is not redacted."""
-    bad = "card number 1234 5678 9012 3456"  # fails Luhn
-    out = redact_segment(bad, segment_index=0, modes=["pii"])
-    assert "[REDACTED:CREDIT_CARD]" not in out.redacted_text
+async def test_pii_unlocatable_span_dropped(monkeypatch):
+    # If the model paraphrases and the span isn't in the text, we cannot
+    # anchor an offset, so nothing is redacted (no crash).
+    _stub_pii(
+        monkeypatch,
+        [PiiEntity(text="not present here", type="name", severity="high")],
+    )
+    result = await redact_segment(
+        "an ordinary sentence", segment_index=0, modes=["pii"]
+    )
+    assert result.redacted_text == "an ordinary sentence"
+    assert result.detections == []
 
-    good = "card number 4242 4242 4242 4242"  # passes Luhn
-    out2 = redact_segment(good, segment_index=0, modes=["pii"])
-    assert "[REDACTED:CREDIT_CARD]" in out2.redacted_text
+
+async def test_pii_fails_open_on_empty(monkeypatch):
+    _stub_pii(monkeypatch, [])
+    result = await redact_segment(
+        "my name is whoever", segment_index=0, modes=["pii"]
+    )
+    assert result.redacted_text == "my name is whoever"
+    assert result.detections == []
 
 
-def test_secrets_aws_and_github():
+async def test_secrets_aws_and_github():
     text = "aws is AKIAABCDEFGHIJKLMNOP and gh is ghp_abcdefghijklmnopqrstuvwxyz0123456789"
-    out = redact_segment(text, segment_index=0, modes=["secrets"])
+    out = await redact_segment(text, segment_index=0, modes=["secrets"])
     types = {d.type for d in out.detections}
     assert "aws_access_key" in types
     assert "github_pat" in types
     assert "[REDACTED:AWS_ACCESS_KEY]" in out.redacted_text
 
 
-def test_glossary_case_insensitive():
+async def test_glossary_case_insensitive():
     g = Glossary(terms=[GlossaryTerm(term="Acme", severity="medium")])
-    out = redact_segment(
+    out = await redact_segment(
         "ACME and acme and AcMe should all match",
         segment_index=0,
         modes=["glossary"],
@@ -57,15 +108,39 @@ def test_glossary_case_insensitive():
     assert out.redacted_text.count("[REDACTED:GLOSSARY:ACME]") == 3
 
 
-def test_modes_are_disable_able():
-    text = "email alex@example.com and akey AKIAABCDEFGHIJKLMNOP"
-    out = redact_segment(text, segment_index=0, modes=["pii"])
+async def test_secrets_mode_does_not_invoke_pii(monkeypatch):
+    # When `pii` is not requested, the LLM is never called.
+    async def _boom(_text: str):
+        raise AssertionError("PII layer must not run for secrets-only mode")
+
+    monkeypatch.setattr(_PII_PATH, _boom)
+    out = await redact_segment(
+        "akey AKIAABCDEFGHIJKLMNOP", segment_index=0, modes=["secrets"]
+    )
     types = {d.type for d in out.detections}
-    assert "email" in types
-    assert "aws_access_key" not in types
+    assert "aws_access_key" in types
 
 
-def test_no_modes_no_redactions():
-    out = redact_segment("alex@example.com", segment_index=0, modes=[])
+async def test_no_modes_no_redactions():
+    out = await redact_segment("alex@example.com", segment_index=0, modes=[])
     assert out.redacted_text == "alex@example.com"
     assert out.detections == []
+
+
+def test_parse_entities_drops_malformed():
+    # Repo-level guard: untrusted model JSON is sanitized.
+    parsed = openai_redactor._parse_entities(
+        {
+            "entities": [
+                {"text": "Jane Doe", "type": "name", "severity": "high"},
+                {"text": "", "type": "name", "severity": "high"},  # empty
+                {"type": "name", "severity": "high"},  # no text
+                {"text": "weird", "type": 123, "severity": "nope"},  # coerced
+                "garbage",
+            ]
+        }
+    )
+    assert [(e.text, e.type, e.severity) for e in parsed] == [
+        ("Jane Doe", "name", "high"),
+        ("weird", "other", "medium"),
+    ]

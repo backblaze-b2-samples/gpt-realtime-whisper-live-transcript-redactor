@@ -35,10 +35,24 @@ the UI in near-real-time.
 
 ## OpenAI Realtime config
 
-- `modalities: ["text"]` — no LLM responses, transcription only
-- `input_audio_format: "pcm16"` (24kHz mono)
-- `input_audio_transcription.model: <OPENAI_REALTIME_MODEL>` — default `gpt-realtime-whisper`
-- `turn_detection: {"type": "server_vad"}` — server decides segment boundaries
+The client targets the **GA** Realtime API shape. We connect to
+`wss://api.openai.com/v1/realtime?intent=transcription` with only an
+`Authorization: Bearer` header — the legacy `OpenAI-Beta: realtime=v1`
+header is **not** sent (it now triggers `beta_api_shape_disabled`). The
+session is configured with a single `session.update`:
+
+- `session.type: "transcription"`
+- `session.audio.input.format: {"type": "audio/pcm", "rate": 24000}` (24kHz mono)
+- `session.audio.input.transcription.model: <OPENAI_REALTIME_MODEL>` — default `gpt-realtime-whisper`
+
+`turn_detection` is intentionally **omitted**: `gpt-realtime-whisper`
+rejects it ("Turn detection is not supported for this transcription
+model"). Incremental `delta` events still stream live as audio arrives;
+the finalized `completed` event (which drives redaction) is produced when
+the bridge issues an explicit `commit()` on `stop`. A recording therefore
+yields one finalized segment covering the whole turn.
+
+> Requires `websockets` >= 14 (`additional_headers`, `ClientConnection`).
 
 ## Browser audio path
 
@@ -51,11 +65,18 @@ each Float32 sample to Int16.
 
 ## Reconnection and fail-soft
 
+- On `stop` (or browser disconnect), the bridge issues a final `commit()`
+  and waits up to 15s for the trailing `completed` transcript before tearing
+  down — without this the last (and, for `gpt-realtime-whisper`, the only)
+  utterance would be lost.
 - If the OpenAI key is missing, the bridge sends a single `error` event and
   closes with code `1011`. The session manifest is marked `errored` and
-  persisted so the audit trail reflects the failure.
+  persisted (and `finalize()` is skipped so it is not overwritten back to
+  `finalized`).
 - If the browser disconnects without sending `stop`, the bridge still
-  calls `finalize()` on its way out — partial transcripts are persisted.
+  commits and calls `finalize()` on its way out — the partial turn is
+  transcribed and persisted. All client sends after a disconnect are
+  best-effort and never crash the handler.
 - A reconnect attempt requires creating a new session (a new id) — the
   existing session is finalized, not resumed. v2 may add resumption.
 

@@ -13,7 +13,7 @@ from collections import defaultdict
 
 from app.service.redaction_detectors import (
     detect_glossary,
-    detect_pii,
+    detect_pii_llm,
     detect_secrets,
 )
 from app.types.glossary import Glossary
@@ -69,17 +69,21 @@ def _substitute(text: str, detections: list[Detection]) -> str:
     return "".join(out_parts)
 
 
-def redact_segment(
+async def redact_segment(
     segment_text: str,
     segment_index: int,
     modes: list[str],
     glossary: Glossary | None = None,
 ) -> RedactionResult:
-    """Run the enabled detectors against one segment and return the result."""
+    """Run the enabled detectors against one segment and return the result.
+
+    Async because the `pii` layer makes a network call (LLM extraction);
+    the deterministic `secrets` / `glossary` layers stay synchronous.
+    """
     active = {m for m in modes if m in VALID_MODES}
     detections: list[Detection] = []
     if "pii" in active:
-        detections.extend(detect_pii(segment_text, segment_index))
+        detections.extend(await detect_pii_llm(segment_text, segment_index))
     if "secrets" in active:
         detections.extend(detect_secrets(segment_text, segment_index))
     if "glossary" in active and glossary is not None:

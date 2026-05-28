@@ -62,6 +62,13 @@ the session-level rollup that the per-window events do not replace.
 }
 ```
 
+`duration_ms` is derived from `audio_bytes_received` (PCM16 24 kHz mono:
+48,000 bytes/sec), not from the upstream transcription events — the
+Realtime transcription event carries no per-segment duration. Each
+completed segment's `[started_at_ms, ended_at_ms]` is the wall-clock
+audio position at that point in the stream, and `duration_ms` is the last
+segment's end.
+
 ## Verifying a session
 
 1. Read `manifest.json` — confirm `redacted_text_sha256` matches the

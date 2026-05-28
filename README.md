@@ -12,16 +12,24 @@ Stream microphone audio through OpenAI's GPT-Realtime-Whisper, redact PII / secr
 
 ## What it looks like
 
+The dashboard summarises recent redaction activity, backed by Backblaze B2:
+
+![Dashboard with total sessions, duration, detections, and a recent-sessions table](docs/images/dashboard.png)
+
 - `/record` — start/stop the live stream, watch the transcript form, see redactions land as severity-coloured chips
+
+![Live recording page streaming the mic to OpenAI Realtime, with redaction-layer and storage options](docs/images/record-live-transcription.png)
+
 - `/sessions` — sample-scoped library of redaction sessions with storage-mode badges
 - `/sessions/[id]` — split-pane detail page: redacted transcript (always) + original (if stored), redaction manifest, audit-trail event log, exports
-- `/files` — full B2 bucket explorer (kept from the starter; ops can see every artifact)
+
+![Session detail page showing the redacted transcript, session summary, and append-only audit trail](docs/images/session-detail.png)
 
 ## Quick Start
 
-You need: Node.js >= 20, pnpm >= 9, Python >= 3.11, < 3.13[^audioop], a free **[Backblaze B2 account](https://www.backblaze.com/sign-up/ai-cloud-storage?utm_source=github&utm_medium=referral&utm_campaign=ai_artifacts&utm_content=b2ai-gpt-realtime-whisper-live-transcript-redactor)**, and an **[OpenAI API key](https://platform.openai.com/api-keys)**.
+You need: Node.js >= 20, pnpm >= 9, Python >= 3.11, < 3.13`[^audioop]`, a free **[Backblaze B2 account](https://www.backblaze.com/sign-up/ai-cloud-storage?utm_source=github&utm_medium=referral&utm_campaign=ai_artifacts&utm_content=b2ai-gpt-realtime-whisper-live-transcript-redactor)**, and an **[OpenAI API key](https://platform.openai.com/api-keys)**.
 
-[^audioop]: The WAV decoder in `services/api/app/service/audio_decode.py` depends on the stdlib `audioop` module, which was removed in Python 3.13. Tracking the upgrade is on the tech-debt tracker.
+`[^audioop]`: The WAV decoder in `services/api/app/service/audio_decode.py` depends on the stdlib `audioop` module, which was removed in Python 3.13. Tracking the upgrade is on the tech-debt tracker.
 
 ```bash
 git clone https://github.com/backblaze-b2-samples/gpt-realtime-whisper-live-transcript-redactor.git
@@ -75,9 +83,11 @@ pnpm dev
 | `B2_KEY_ID` | yes | B2 application key ID |
 | `B2_APPLICATION_KEY` | yes | B2 application key secret |
 | `B2_BUCKET_NAME` | yes | B2 bucket to use as the storage of record |
-| `OPENAI_API_KEY` | yes | Drives realtime transcription via OpenAI Realtime |
+| `OPENAI_API_KEY` | yes | Drives realtime transcription (Realtime API) **and** the LLM PII redaction layer (chat completions) |
 | `OPENAI_REALTIME_MODEL` | no | Defaults to `gpt-realtime-whisper` |
 | `REDACTION_DEFAULT_MODES` | no | Comma list of `pii,secrets,glossary`; per-session toggles override |
+| `REDACTION_PII_MODEL` | no | Chat model for the LLM-backed `pii` layer; defaults to `gpt-4o-mini` |
+| `REDACTION_PII_TIMEOUT_S` | no | Per-segment PII-extraction timeout (seconds); defaults to `15` |
 | `SESSION_STORE_ORIGINALS_DEFAULT` | no | `true` (dev default) / `false` (production recommended) |
 | `API_CORS_ORIGINS` | no | Comma list of allowed origins for the API (defaults: `http://localhost:3000,http://localhost:3001`) |
 

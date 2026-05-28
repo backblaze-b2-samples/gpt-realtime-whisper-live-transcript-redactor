@@ -1,13 +1,17 @@
 "use client";
 
 import { useState } from "react";
-import { Download, ShieldAlert } from "lucide-react";
+import { Download, FileText, ShieldAlert } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState } from "@/components/ui/error-state";
-import { useGenerateExport, useSession } from "@/lib/queries";
+import {
+  useGenerateExport,
+  useSession,
+  useSessionTranscript,
+} from "@/lib/queries";
 import { formatDate } from "@/lib/utils";
 import type {
   ExportFormat,
@@ -26,6 +30,7 @@ const FORMATS: ExportFormat[] = ["txt", "srt", "vtt"];
 
 export function SessionDetail({ sessionId }: { sessionId: string }) {
   const { data, isLoading, error, refetch } = useSession(sessionId);
+  const transcript = useSessionTranscript(sessionId);
   const exporter = useGenerateExport();
   const [lastExportUrl, setLastExportUrl] = useState<string | null>(null);
 
@@ -72,6 +77,29 @@ export function SessionDetail({ sessionId }: { sessionId: string }) {
                 : "Redacted only"}
             </div>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="border-b border-border py-4 px-5">
+          <CardTitle className="card-title flex items-center gap-2">
+            <FileText className="h-3.5 w-3.5" /> Redacted transcript
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-5">
+          {transcript.isLoading ? (
+            <Skeleton className="h-24 w-full" />
+          ) : transcript.data && transcript.data.segments.length > 0 ? (
+            <div className="space-y-2 text-sm leading-relaxed max-h-[360px] overflow-auto">
+              {transcript.data.segments.map((seg) => (
+                <p key={seg.index}>{seg.text}</p>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              No transcript was captured for this session.
+            </p>
+          )}
         </CardContent>
       </Card>
 

@@ -11,6 +11,7 @@ import type {
   SessionStartResponse,
   SessionStats,
   SessionSummary,
+  Transcript,
   UploadStats,
 } from "@gpt-realtime-whisper-live-transcript-redactor/shared";
 
@@ -153,6 +154,10 @@ export async function listSessions(limit = 100) {
 
 export async function getSession(sessionId: string) {
   return apiFetch<SessionManifest>(`/sessions/${sessionId}`);
+}
+
+export async function getSessionTranscript(sessionId: string) {
+  return apiFetch<Transcript>(`/sessions/${sessionId}/transcript`);
 }
 
 export async function deleteSession(sessionId: string) {

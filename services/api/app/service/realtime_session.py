@@ -100,24 +100,34 @@ class RealtimeSessionState:
         ):
             self._emit_audio_received()
 
-    def add_completed_segment(self, text: str, duration_ms: int) -> dict:
+    async def add_completed_segment(self, text: str) -> dict:
         """Run redaction on a finalized utterance and emit the UI payload.
 
         Returns the JSON-serializable event the bridge will forward to the
         browser. Side effects: mutate manifest, append segments, audit event.
+
+        Async because redaction's PII layer makes a network call.
         """
         index = self._next_index
         self._next_index += 1
 
-        result = redaction_svc.redact_segment(
+        result = await redaction_svc.redact_segment(
             text,
             segment_index=index,
             modes=self.manifest.redaction_modes,
             glossary=self.glossary,
         )
 
+        # The Realtime transcription event carries no per-segment duration,
+        # so derive segment boundaries from the wall-clock position of the
+        # audio received so far: this segment ends at the current audio
+        # offset and starts where the previous one ended. `max` guards the
+        # degenerate case where a completed event lands before its audio is
+        # fully counted, which would otherwise produce a negative span.
         started_at_ms = self.manifest.duration_ms
-        ended_at_ms = started_at_ms + max(0, duration_ms)
+        ended_at_ms = max(
+            started_at_ms, _bytes_to_duration_ms(self.manifest.audio_bytes_received)
+        )
         self.manifest.duration_ms = ended_at_ms
         self.manifest.segment_count = index + 1
 

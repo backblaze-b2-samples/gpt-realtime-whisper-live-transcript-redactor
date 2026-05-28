@@ -6,6 +6,7 @@ from fastapi import APIRouter, HTTPException
 
 from app.service.sessions import (
     SessionError,
+    get_redacted_transcript,
     get_session,
     get_session_activity,
     get_session_stats,
@@ -23,6 +24,7 @@ from app.types import (
     SessionStats,
     SessionSummary,
 )
+from app.types.transcripts import Transcript
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +63,14 @@ async def session_activity_endpoint(days: int = 7):
 async def get_session_endpoint(session_id: str):
     try:
         return get_session(session_id)
+    except SessionError as e:
+        raise HTTPException(status_code=e.status_code, detail=e.detail) from None
+
+
+@router.get("/sessions/{session_id}/transcript", response_model=Transcript)
+async def get_session_transcript_endpoint(session_id: str):
+    try:
+        return get_redacted_transcript(session_id)
     except SessionError as e:
         raise HTTPException(status_code=e.status_code, detail=e.detail) from None
 
