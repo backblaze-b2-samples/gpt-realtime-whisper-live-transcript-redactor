@@ -78,11 +78,11 @@ pnpm dev
 
 | Variable | Required | Purpose |
 |---|---|---|
-| `B2_ENDPOINT` | yes | B2 S3-compatible endpoint URL |
 | `B2_REGION` | yes | B2 region (e.g. `us-west-004`) |
-| `B2_KEY_ID` | yes | B2 application key ID |
+| `B2_APPLICATION_KEY_ID` | yes | B2 application key ID |
 | `B2_APPLICATION_KEY` | yes | B2 application key secret |
 | `B2_BUCKET_NAME` | yes | B2 bucket to use as the storage of record |
+| `B2_PUBLIC_URL_BASE` | no | Public bucket URL base for direct object links; omit to use presigned URLs |
 | `OPENAI_API_KEY` | yes | Drives realtime transcription (Realtime API) **and** the LLM PII redaction layer (chat completions) |
 | `OPENAI_REALTIME_MODEL` | no | Defaults to `gpt-realtime-whisper` |
 | `REDACTION_DEFAULT_MODES` | no | Comma list of `pii,secrets,glossary`; per-session toggles override |

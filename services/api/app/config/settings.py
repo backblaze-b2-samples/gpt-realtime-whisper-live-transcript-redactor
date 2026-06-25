@@ -3,12 +3,11 @@ from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     # Backblaze B2 (required at runtime)
-    b2_endpoint: str = ""
     b2_region: str = ""
-    b2_key_id: str = ""
+    b2_application_key_id: str = ""
     b2_application_key: str = ""
     b2_bucket_name: str = ""
-    b2_public_url: str = ""
+    b2_public_url_base: str = ""
 
     api_port: int = 8000
     # Explicit allowlist by default — covers Next on :3000 and the
@@ -63,6 +62,12 @@ class Settings(BaseSettings):
     session_store_originals_default: bool = True
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
+
+    @property
+    def b2_s3_endpoint_url(self) -> str:
+        if not self.b2_region:
+            return ""
+        return f"https://s3.{self.b2_region}.backblazeb2.com"
 
     @property
     def cors_origins(self) -> list[str]:

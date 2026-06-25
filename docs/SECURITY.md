@@ -6,7 +6,7 @@ Security principles and implementation for `gpt-realtime-whisper-live-transcript
 ## Trust Boundaries
 
 - **Frontend -> API**: CORS-restricted to configured origins, scoped to `GET/POST/PUT/DELETE/OPTIONS`
-- **API -> B2**: Authenticated via `B2_KEY_ID` + `B2_APPLICATION_KEY`, signature v4, every S3 client carries `user_agent_extra="b2ai-gpt-realtime-whisper-live-transcript-redactor"`
+- **API -> B2**: Authenticated via `B2_APPLICATION_KEY_ID` + `B2_APPLICATION_KEY`, signature v4, every S3 client carries `user_agent_extra="b2ai-gpt-realtime-whisper-live-transcript-redactor (backblaze-b2-samples)"`
 - **API -> OpenAI Realtime**: Authenticated via `OPENAI_API_KEY` over WSS, never relayed to the browser
 - **Client -> B2**: Presigned URLs for download (10-min expiry, `Content-Disposition: attachment` for exports)
 

@@ -69,7 +69,7 @@ session bundles plus any other tooling output — ops need a single tree.
 
 - No backward imports across layers
 - `boto3` only in `repo/` (every S3 client construction sets
-  `Config(user_agent_extra="b2ai-gpt-realtime-whisper-live-transcript-redactor")`)
+  `Config(user_agent_extra="b2ai-gpt-realtime-whisper-live-transcript-redactor (backblaze-b2-samples)")`)
 - `websockets` client SDK only in `repo/`
 - FastAPI `WebSocket` handlers only in `runtime/` — service layer stays pure
 - All boundary data validated by Pydantic
