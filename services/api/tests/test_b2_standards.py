@@ -164,6 +164,18 @@ def test_invalid_b2_region_prevents_s3_client_creation(monkeypatch):
     assert called is False
 
 
+def test_public_url_base_trailing_slash_is_normalized(monkeypatch):
+    monkeypatch.setattr(
+        b2_client.settings,
+        "b2_public_url_base",
+        "https://files.example.com/",
+    )
+
+    url = b2_client._public_url("sessions/2026/06/file name.txt")
+
+    assert url == "https://files.example.com/sessions/2026/06/file%20name.txt"
+
+
 def test_s3_client_uses_standard_key_id_and_user_agent(monkeypatch):
     captured: dict = {}
 

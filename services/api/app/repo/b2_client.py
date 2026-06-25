@@ -30,7 +30,7 @@ def _public_url(key: str) -> str | None:
     """Build a public URL for an object key, percent-encoding the path."""
     if not settings.b2_public_url_base:
         return None
-    return f"{settings.b2_public_url_base}/{quote(key, safe='/')}"
+    return f"{settings.b2_public_url_base.rstrip('/')}/{quote(key, safe='/')}"
 
 
 @functools.lru_cache(maxsize=1)
