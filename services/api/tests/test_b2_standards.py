@@ -17,6 +17,7 @@ B2_ENV_KEYS = (
     "B2_PUBLIC_URL",
     "B2_ENDPOINT",
 )
+LEGACY_ENV_EXAMPLE_ALIASES = ("B2_KEY_ID", "B2_ENDPOINT", "B2_PUBLIC_URL=")
 
 
 def _clear_b2_env(monkeypatch):
@@ -84,25 +85,47 @@ def test_settings_prefer_standard_names_when_both_present(tmp_path, monkeypatch)
     assert settings.b2_public_url_base == "https://standard-files.example.com"
 
 
+def test_settings_fall_back_when_standard_names_are_blank(tmp_path, monkeypatch):
+    _clear_b2_env(monkeypatch)
+    env_file = tmp_path / ".env"
+    env_file.write_text(
+        "\n".join(
+            [
+                "B2_APPLICATION_KEY_ID=",
+                "B2_KEY_ID=legacy-key-id",
+                "B2_APPLICATION_KEY=sample-key",
+                "B2_BUCKET_NAME=sample-bucket",
+                "B2_REGION=us-west-004",
+                "B2_PUBLIC_URL_BASE=",
+                "B2_PUBLIC_URL=https://legacy-files.example.com",
+            ]
+        )
+    )
+
+    settings = Settings(_env_file=env_file)
+
+    assert settings.b2_application_key_id == "legacy-key-id"
+    assert settings.b2_public_url_base == "https://legacy-files.example.com"
+
+
 def test_env_example_omits_legacy_b2_aliases():
     env_example = (REPO_ROOT / ".env.example").read_text()
-    legacy_key_id = "B2_" + "KEY_ID"
-    legacy_endpoint = "B2_" + "ENDPOINT"
-    legacy_public_url = "B2_" + "PUBLIC_URL="
 
     assert "B2_APPLICATION_KEY_ID=" in env_example
     assert "B2_PUBLIC_URL_BASE" in env_example
-    assert legacy_key_id not in env_example
-    assert legacy_endpoint not in env_example
-    assert legacy_public_url not in env_example
+    for legacy_alias in LEGACY_ENV_EXAMPLE_ALIASES:
+        assert legacy_alias not in env_example
 
 
 @pytest.mark.parametrize(
     "region",
     [
+        "attacker.example/leak",
         "attacker.example/#",
         "attacker.example?x=",
         "attacker.example/@x",
+        "us-west-004@attacker.example",
+        "us-west-004:443",
         " us-west-004",
         "us-west-004 ",
         "us/west/004",
@@ -117,6 +140,28 @@ def test_settings_reject_unsafe_b2_region(region, monkeypatch):
 
     with pytest.raises(ValidationError):
         Settings(_env_file=None)
+
+
+def test_invalid_b2_region_prevents_s3_client_creation(monkeypatch):
+    called = False
+
+    def fake_client(*_args, **_kwargs):
+        nonlocal called
+        called = True
+        return object()
+
+    _clear_b2_env(monkeypatch)
+    monkeypatch.setenv("B2_REGION", "attacker.example/leak")
+    monkeypatch.setattr(b2_client.boto3, "client", fake_client)
+    b2_client.get_s3_client.cache_clear()
+
+    try:
+        with pytest.raises(ValidationError):
+            Settings(_env_file=None)
+    finally:
+        b2_client.get_s3_client.cache_clear()
+
+    assert called is False
 
 
 def test_s3_client_uses_standard_key_id_and_user_agent(monkeypatch):

@@ -14,7 +14,8 @@ Security principles and implementation for `gpt-realtime-whisper-live-transcript
 derives `https://s3.<region>.backblazeb2.com` for boto3. During the B2
 env-name migration, the API still accepts `B2_KEY_ID` and `B2_PUBLIC_URL`
 as fallbacks and ignores leftover `B2_ENDPOINT`; standardized names take
-precedence when both old and new values are present.
+precedence when both old and new values are present. Rolling deployments
+should carry both old and new names until all old API instances are gone.
 
 ## Storage mode — default flip for production
 

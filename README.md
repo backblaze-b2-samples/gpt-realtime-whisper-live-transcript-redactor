@@ -94,11 +94,14 @@ pnpm dev
 Transition note: this release accepts the old `B2_KEY_ID` value as a
 fallback for `B2_APPLICATION_KEY_ID`, ignores leftover `B2_ENDPOINT`
 while deriving the S3 endpoint from `B2_REGION`, and accepts
-`B2_PUBLIC_URL` as a fallback for `B2_PUBLIC_URL_BASE`. New deployments
-should use only the standardized names above. The legacy fallbacks are
-tracked in [docs/exec-plans/tech-debt-tracker.md](docs/exec-plans/tech-debt-tracker.md)
-and should be removed after one release cycle once downstream
-deployments have migrated.
+`B2_PUBLIC_URL` as a fallback for `B2_PUBLIC_URL_BASE`. For rolling
+deployments, publish both old and new names first, deploy the new code,
+then remove the legacy names only after all old pods are gone. New
+single-shot deployments should use only the standardized names above.
+The legacy fallbacks are tracked in
+[docs/exec-plans/tech-debt-tracker.md](docs/exec-plans/tech-debt-tracker.md)
+and should be removed after one release cycle once downstream deployments
+have migrated.
 
 See `.env.example` for the full annotated file.
 
