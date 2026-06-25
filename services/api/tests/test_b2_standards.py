@@ -142,38 +142,30 @@ def test_settings_reject_unsafe_b2_region(region, monkeypatch):
         Settings(_env_file=None)
 
 
-def test_invalid_b2_region_prevents_s3_client_creation(monkeypatch):
-    called = False
-
-    def fake_client(*_args, **_kwargs):
-        nonlocal called
-        called = True
-        return object()
-
+def test_settings_reject_invalid_region_before_client_configuration(monkeypatch):
     _clear_b2_env(monkeypatch)
     monkeypatch.setenv("B2_REGION", "attacker.example/leak")
-    monkeypatch.setattr(b2_client.boto3, "client", fake_client)
-    b2_client.get_s3_client.cache_clear()
 
-    try:
-        with pytest.raises(ValidationError):
-            Settings(_env_file=None)
-    finally:
-        b2_client.get_s3_client.cache_clear()
-
-    assert called is False
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None)
 
 
-def test_public_url_base_trailing_slash_is_normalized(monkeypatch):
+def test_public_url_base_is_trimmed_and_trailing_slash_is_normalized(monkeypatch):
     monkeypatch.setattr(
         b2_client.settings,
         "b2_public_url_base",
-        "https://files.example.com/",
+        " https://files.example.com/ ",
     )
 
     url = b2_client._public_url("sessions/2026/06/file name.txt")
 
     assert url == "https://files.example.com/sessions/2026/06/file%20name.txt"
+
+
+def test_public_url_base_blank_after_trim_returns_none(monkeypatch):
+    monkeypatch.setattr(b2_client.settings, "b2_public_url_base", "   ")
+
+    assert b2_client._public_url("sessions/2026/06/file.txt") is None
 
 
 def test_s3_client_uses_standard_key_id_and_user_agent(monkeypatch):
