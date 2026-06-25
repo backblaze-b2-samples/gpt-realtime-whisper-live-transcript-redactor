@@ -29,6 +29,8 @@ const REQUIRED_PYTHON_MINOR = 11; // 3.11+
 // backend must run on 3.11 or 3.12. Tracked in
 // docs/exec-plans/tech-debt-tracker.md.
 const MAX_PYTHON_MINOR_EXCLUSIVE = 13; // i.e. 3.13 and above is rejected
+// Keep in sync with services/api/app/config/settings.py so preflight and
+// runtime validation agree.
 const B2_REGION_PATTERN = /^[a-z]{2}(?:-[a-z]+)+-\d{3}$/;
 
 // Required B2 env vars + the exact placeholder strings shipped in

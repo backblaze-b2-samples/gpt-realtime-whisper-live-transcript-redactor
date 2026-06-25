@@ -3,6 +3,7 @@ import re
 from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# Keep in sync with scripts/doctor.mjs so preflight and runtime validation agree.
 B2_REGION_PATTERN = re.compile(r"^[a-z]{2}(?:-[a-z]+)+-\d{3}$")
 B2_REGION_PLACEHOLDER = "your_b2_region"
 B2_TRIMMED_FIELDS = (

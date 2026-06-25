@@ -17,6 +17,8 @@ B2_ENV_KEYS = (
     "B2_PUBLIC_URL",
     "B2_ENDPOINT",
 )
+# B2_PUBLIC_URL is checked with "=" because the canonical B2_PUBLIC_URL_BASE
+# name intentionally contains the bare legacy token as a prefix.
 LEGACY_ENV_EXAMPLE_ALIASES = ("B2_KEY_ID", "B2_ENDPOINT", "B2_PUBLIC_URL=")
 
 
