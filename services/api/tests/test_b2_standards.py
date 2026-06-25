@@ -1,12 +1,31 @@
 from pathlib import Path
 
+import pytest
+from pydantic import ValidationError
+
 from app.config.settings import Settings
 from app.repo import b2_client
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
+B2_ENV_KEYS = (
+    "B2_APPLICATION_KEY_ID",
+    "B2_KEY_ID",
+    "B2_APPLICATION_KEY",
+    "B2_BUCKET_NAME",
+    "B2_REGION",
+    "B2_PUBLIC_URL_BASE",
+    "B2_PUBLIC_URL",
+    "B2_ENDPOINT",
+)
 
 
-def test_settings_use_standard_b2_env_names(monkeypatch):
+def _clear_b2_env(monkeypatch):
+    for key in B2_ENV_KEYS:
+        monkeypatch.delenv(key, raising=False)
+
+
+def test_settings_accept_standard_b2_env_names(monkeypatch):
+    _clear_b2_env(monkeypatch)
     monkeypatch.setenv("B2_APPLICATION_KEY_ID", "sample-key-id")
     monkeypatch.setenv("B2_APPLICATION_KEY", "sample-key")
     monkeypatch.setenv("B2_BUCKET_NAME", "sample-bucket")
@@ -22,6 +41,49 @@ def test_settings_use_standard_b2_env_names(monkeypatch):
     assert settings.b2_public_url_base == "https://files.example.com"
 
 
+def test_settings_accept_legacy_b2_env_names(monkeypatch):
+    _clear_b2_env(monkeypatch)
+    monkeypatch.setenv("B2_KEY_ID", "legacy-key-id")
+    monkeypatch.setenv("B2_APPLICATION_KEY", "legacy-key")
+    monkeypatch.setenv("B2_BUCKET_NAME", "legacy-bucket")
+    monkeypatch.setenv("B2_REGION", "us-east-005")
+    monkeypatch.setenv("B2_ENDPOINT", "https://legacy.example.invalid")
+    monkeypatch.setenv("B2_PUBLIC_URL", "https://legacy-files.example.com")
+
+    settings = Settings(_env_file=None)
+
+    assert settings.b2_application_key_id == "legacy-key-id"
+    assert settings.b2_application_key == "legacy-key"
+    assert settings.b2_bucket_name == "legacy-bucket"
+    assert settings.b2_s3_endpoint_url == "https://s3.us-east-005.backblazeb2.com"
+    assert settings.b2_public_url_base == "https://legacy-files.example.com"
+
+
+def test_settings_prefer_standard_names_when_both_present(tmp_path, monkeypatch):
+    _clear_b2_env(monkeypatch)
+    env_file = tmp_path / ".env"
+    env_file.write_text(
+        "\n".join(
+            [
+                "B2_APPLICATION_KEY_ID=standard-key-id",
+                "B2_KEY_ID=legacy-key-id",
+                "B2_APPLICATION_KEY=sample-key",
+                "B2_BUCKET_NAME=sample-bucket",
+                "B2_REGION=eu-central-003",
+                "B2_ENDPOINT=https://legacy.example.invalid",
+                "B2_PUBLIC_URL_BASE=https://standard-files.example.com",
+                "B2_PUBLIC_URL=https://legacy-files.example.com",
+            ]
+        )
+    )
+
+    settings = Settings(_env_file=env_file)
+
+    assert settings.b2_application_key_id == "standard-key-id"
+    assert settings.b2_s3_endpoint_url == "https://s3.eu-central-003.backblazeb2.com"
+    assert settings.b2_public_url_base == "https://standard-files.example.com"
+
+
 def test_env_example_omits_legacy_b2_aliases():
     env_example = (REPO_ROOT / ".env.example").read_text()
     legacy_key_id = "B2_" + "KEY_ID"
@@ -33,6 +95,28 @@ def test_env_example_omits_legacy_b2_aliases():
     assert legacy_key_id not in env_example
     assert legacy_endpoint not in env_example
     assert legacy_public_url not in env_example
+
+
+@pytest.mark.parametrize(
+    "region",
+    [
+        "attacker.example/#",
+        "attacker.example?x=",
+        "attacker.example/@x",
+        " us-west-004",
+        "us-west-004 ",
+        "us/west/004",
+        "us-west-004#",
+        "us-west-004?",
+        "us-west-004@",
+    ],
+)
+def test_settings_reject_unsafe_b2_region(region, monkeypatch):
+    _clear_b2_env(monkeypatch)
+    monkeypatch.setenv("B2_REGION", region)
+
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None)
 
 
 def test_s3_client_uses_standard_key_id_and_user_agent(monkeypatch):

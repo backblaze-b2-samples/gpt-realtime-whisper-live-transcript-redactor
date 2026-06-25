@@ -94,8 +94,7 @@ async def test_secrets_aws_and_github():
     types = {d.type for d in out.detections}
     assert "aws_access_key" in types
     assert "github_pat" in types
-    expected_label = "[REDACTED:" + "_".join(["AWS", "ACCESS", "KEY"]) + "]"
-    assert expected_label in out.redacted_text
+    assert "[REDACTED:AWS_ACCESS_KEY]" in out.redacted_text
 
 
 async def test_glossary_case_insensitive():

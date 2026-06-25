@@ -1,13 +1,25 @@
-from pydantic_settings import BaseSettings
+import re
+
+from pydantic import AliasChoices, Field, field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+B2_REGION_PATTERN = re.compile(r"^[a-z]{2}(?:-[a-z]+)+-\d{3}$")
+B2_REGION_PLACEHOLDER = "your_b2_region"
 
 
 class Settings(BaseSettings):
     # Backblaze B2 (required at runtime)
     b2_region: str = ""
-    b2_application_key_id: str = ""
+    b2_application_key_id: str = Field(
+        default="",
+        validation_alias=AliasChoices("B2_APPLICATION_KEY_ID", "B2_KEY_ID"),
+    )
     b2_application_key: str = ""
     b2_bucket_name: str = ""
-    b2_public_url_base: str = ""
+    b2_public_url_base: str = Field(
+        default="",
+        validation_alias=AliasChoices("B2_PUBLIC_URL_BASE", "B2_PUBLIC_URL"),
+    )
 
     api_port: int = 8000
     # Explicit allowlist by default — covers Next on :3000 and the
@@ -61,7 +73,23 @@ class Settings(BaseSettings):
     # (the privacy default — flip this in production).
     session_store_originals_default: bool = True
 
-    model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+        populate_by_name=True,
+    )
+
+    @field_validator("b2_region")
+    @classmethod
+    def validate_b2_region(cls, value: str) -> str:
+        if not value or value == B2_REGION_PLACEHOLDER:
+            return value
+        if not B2_REGION_PATTERN.fullmatch(value):
+            raise ValueError(
+                "B2_REGION must be a Backblaze region token such as us-west-004"
+            )
+        return value
 
     @property
     def b2_s3_endpoint_url(self) -> str:

@@ -31,6 +31,12 @@ Set these on the API service:
 | `B2_PUBLIC_URL_BASE` | Optional public bucket URL base for direct object links |
 | `API_CORS_ORIGINS` | Your web service URL (e.g., `https://web-production-xxx.up.railway.app`) |
 
+During the migration to standardized B2 names, the API still accepts
+`B2_KEY_ID` as a fallback for `B2_APPLICATION_KEY_ID`, ignores leftover
+`B2_ENDPOINT`, and accepts `B2_PUBLIC_URL` as a fallback for
+`B2_PUBLIC_URL_BASE`. Prefer the standardized names above for all new
+Railway variables.
+
 Set this on the Web service:
 
 | Variable | Value |

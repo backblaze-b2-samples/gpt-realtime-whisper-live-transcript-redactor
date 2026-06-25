@@ -10,6 +10,12 @@ Security principles and implementation for `gpt-realtime-whisper-live-transcript
 - **API -> OpenAI Realtime**: Authenticated via `OPENAI_API_KEY` over WSS, never relayed to the browser
 - **Client -> B2**: Presigned URLs for download (10-min expiry, `Content-Disposition: attachment` for exports)
 
+`B2_REGION` is validated as a Backblaze region token before the API
+derives `https://s3.<region>.backblazeb2.com` for boto3. During the B2
+env-name migration, the API still accepts `B2_KEY_ID` and `B2_PUBLIC_URL`
+as fallbacks and ignores leftover `B2_ENDPOINT`; standardized names take
+precedence when both old and new values are present.
+
 ## Storage mode — default flip for production
 
 `SESSION_STORE_ORIGINALS_DEFAULT` controls whether raw audio and the

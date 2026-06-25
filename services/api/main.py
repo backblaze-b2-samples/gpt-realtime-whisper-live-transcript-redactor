@@ -48,8 +48,10 @@ REQUIRED_B2_SETTINGS = (
 # the example and didn't edit it, Settings will pass the "non-empty"
 # check above but every B2 call will still 403. Catch that here.
 PLACEHOLDER_VALUES = frozenset({
+    "your_b2_endpoint",
     "your_b2_region",
     "your_application_key_id",
+    "your_key_id",
     "your_application_key",
     "your-bucket-name",
     "your_openai_api_key",
