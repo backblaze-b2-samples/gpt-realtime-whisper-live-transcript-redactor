@@ -5,10 +5,23 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 B2_REGION_PATTERN = re.compile(r"^[a-z]{2}(?:-[a-z]+)+-\d{3}$")
 B2_REGION_PLACEHOLDER = "your_b2_region"
+B2_TRIMMED_FIELDS = (
+    "b2_application_key_id",
+    "b2_key_id",
+    "b2_application_key",
+    "b2_bucket_name",
+    "b2_public_url_base",
+    "b2_public_url",
+    "b2_endpoint",
+)
 
 
 def _has_value(value: str) -> bool:
     return bool(value and value.strip())
+
+
+def _clean_value(value: str) -> str:
+    return value.strip() if value else ""
 
 
 class Settings(BaseSettings):
@@ -94,6 +107,8 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def apply_legacy_b2_fallbacks(self) -> "Settings":
+        for field_name in B2_TRIMMED_FIELDS:
+            setattr(self, field_name, _clean_value(getattr(self, field_name)))
         if not _has_value(self.b2_application_key_id) and _has_value(self.b2_key_id):
             self.b2_application_key_id = self.b2_key_id
         if not _has_value(self.b2_public_url_base) and _has_value(self.b2_public_url):

@@ -202,9 +202,17 @@ function checkEnv() {
     return;
   }
   const env = parseEnvFile(ENV_FILE);
-  const valueFor = ({ primary, legacy }) => (
-    env[primary] || (legacy ? env[legacy] : "")
-  );
+  const hasValue = (value) => Boolean(value && value.trim());
+  const cleanValue = (value) => value ? value.trim() : "";
+  const valueFor = ({ primary, legacy }) => {
+    if (hasValue(env[primary])) {
+      return cleanValue(env[primary]);
+    }
+    if (legacy && hasValue(env[legacy])) {
+      return cleanValue(env[legacy]);
+    }
+    return "";
+  };
   const labelFor = ({ primary, legacy }) => (
     legacy ? `${primary} (or ${legacy})` : primary
   );

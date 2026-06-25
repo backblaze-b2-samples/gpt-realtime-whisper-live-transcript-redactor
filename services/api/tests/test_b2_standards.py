@@ -91,12 +91,12 @@ def test_settings_fall_back_when_standard_names_are_blank(tmp_path, monkeypatch)
     env_file.write_text(
         "\n".join(
             [
-                "B2_APPLICATION_KEY_ID=",
+                'B2_APPLICATION_KEY_ID="   "',
                 "B2_KEY_ID=legacy-key-id",
                 "B2_APPLICATION_KEY=sample-key",
                 "B2_BUCKET_NAME=sample-bucket",
                 "B2_REGION=us-west-004",
-                "B2_PUBLIC_URL_BASE=",
+                'B2_PUBLIC_URL_BASE="   "',
                 "B2_PUBLIC_URL=https://legacy-files.example.com",
             ]
         )
@@ -106,6 +106,22 @@ def test_settings_fall_back_when_standard_names_are_blank(tmp_path, monkeypatch)
 
     assert settings.b2_application_key_id == "legacy-key-id"
     assert settings.b2_public_url_base == "https://legacy-files.example.com"
+
+
+def test_settings_trim_b2_config_values(monkeypatch):
+    _clear_b2_env(monkeypatch)
+    monkeypatch.setenv("B2_APPLICATION_KEY_ID", " sample-key-id ")
+    monkeypatch.setenv("B2_APPLICATION_KEY", " sample-key ")
+    monkeypatch.setenv("B2_BUCKET_NAME", " sample-bucket ")
+    monkeypatch.setenv("B2_REGION", "us-west-004")
+    monkeypatch.setenv("B2_PUBLIC_URL_BASE", " https://files.example.com ")
+
+    settings = Settings(_env_file=None)
+
+    assert settings.b2_application_key_id == "sample-key-id"
+    assert settings.b2_application_key == "sample-key"
+    assert settings.b2_bucket_name == "sample-bucket"
+    assert settings.b2_public_url_base == "https://files.example.com"
 
 
 def test_env_example_omits_legacy_b2_aliases():
