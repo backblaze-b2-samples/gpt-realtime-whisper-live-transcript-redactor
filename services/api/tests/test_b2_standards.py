@@ -142,14 +142,6 @@ def test_settings_reject_unsafe_b2_region(region, monkeypatch):
         Settings(_env_file=None)
 
 
-def test_settings_reject_invalid_region_before_client_configuration(monkeypatch):
-    _clear_b2_env(monkeypatch)
-    monkeypatch.setenv("B2_REGION", "attacker.example/leak")
-
-    with pytest.raises(ValidationError):
-        Settings(_env_file=None)
-
-
 def test_public_url_base_is_trimmed_and_trailing_slash_is_normalized(monkeypatch):
     monkeypatch.setattr(
         b2_client.settings,
