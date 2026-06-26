@@ -78,11 +78,11 @@ pnpm dev
 
 | Variable | Required | Purpose |
 |---|---|---|
-| `B2_ENDPOINT` | yes | B2 S3-compatible endpoint URL |
 | `B2_REGION` | yes | B2 region (e.g. `us-west-004`) |
-| `B2_KEY_ID` | yes | B2 application key ID |
+| `B2_APPLICATION_KEY_ID` | yes | B2 application key ID |
 | `B2_APPLICATION_KEY` | yes | B2 application key secret |
 | `B2_BUCKET_NAME` | yes | B2 bucket to use as the storage of record |
+| `B2_PUBLIC_URL_BASE` | no | Public bucket URL base for direct object links; omit to use presigned URLs |
 | `OPENAI_API_KEY` | yes | Drives realtime transcription (Realtime API) **and** the LLM PII redaction layer (chat completions) |
 | `OPENAI_REALTIME_MODEL` | no | Defaults to `gpt-realtime-whisper` |
 | `REDACTION_DEFAULT_MODES` | no | Comma list of `pii,secrets,glossary`; per-session toggles override |
@@ -90,6 +90,18 @@ pnpm dev
 | `REDACTION_PII_TIMEOUT_S` | no | Per-segment PII-extraction timeout (seconds); defaults to `15` |
 | `SESSION_STORE_ORIGINALS_DEFAULT` | no | `true` (dev default) / `false` (production recommended) |
 | `API_CORS_ORIGINS` | no | Comma list of allowed origins for the API (defaults: `http://localhost:3000,http://localhost:3001`) |
+
+Transition note: this release accepts the old `B2_KEY_ID` value as a
+fallback for `B2_APPLICATION_KEY_ID`, ignores leftover `B2_ENDPOINT`
+while deriving the S3 endpoint from `B2_REGION`, and accepts
+`B2_PUBLIC_URL` as a fallback for `B2_PUBLIC_URL_BASE`. For rolling
+deployments, publish both old and new names first, deploy the new code,
+then remove the legacy names only after all old pods are gone. New
+single-shot deployments should use only the standardized names above.
+The legacy fallbacks are tracked in
+[docs/exec-plans/tech-debt-tracker.md](docs/exec-plans/tech-debt-tracker.md)
+and should be removed after one release cycle once downstream deployments
+have migrated.
 
 See `.env.example` for the full annotated file.
 

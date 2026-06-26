@@ -29,20 +29,23 @@ const REQUIRED_PYTHON_MINOR = 11; // 3.11+
 // backend must run on 3.11 or 3.12. Tracked in
 // docs/exec-plans/tech-debt-tracker.md.
 const MAX_PYTHON_MINOR_EXCLUSIVE = 13; // i.e. 3.13 and above is rejected
+// Keep in sync with services/api/app/config/settings.py so preflight and
+// runtime validation agree.
+const B2_REGION_PATTERN = /^[a-z]{2}(?:-[a-z]+)+-\d{3}$/;
 
 // Required B2 env vars + the exact placeholder strings shipped in
 // .env.example. Keep in sync with services/api/main.py REQUIRED_B2_SETTINGS
 // and PLACEHOLDER_VALUES.
 const REQUIRED_B2_VARS = [
-  "B2_ENDPOINT",
-  "B2_REGION",
-  "B2_KEY_ID",
-  "B2_APPLICATION_KEY",
-  "B2_BUCKET_NAME",
+  { primary: "B2_REGION" },
+  { primary: "B2_APPLICATION_KEY_ID", legacy: "B2_KEY_ID" },
+  { primary: "B2_APPLICATION_KEY" },
+  { primary: "B2_BUCKET_NAME" },
 ];
 const PLACEHOLDERS = new Set([
   "your_b2_endpoint",
   "your_b2_region",
+  "your_application_key_id",
   "your_key_id",
   "your_application_key",
   "your-bucket-name",
@@ -201,7 +204,21 @@ function checkEnv() {
     return;
   }
   const env = parseEnvFile(ENV_FILE);
-  const missing = REQUIRED_B2_VARS.filter((k) => !env[k]);
+  const hasValue = (value) => Boolean(value && value.trim());
+  const cleanValue = (value) => value ? value.trim() : "";
+  const valueFor = ({ primary, legacy }) => {
+    if (hasValue(env[primary])) {
+      return cleanValue(env[primary]);
+    }
+    if (legacy && hasValue(env[legacy])) {
+      return cleanValue(env[legacy]);
+    }
+    return "";
+  };
+  const labelFor = ({ primary, legacy }) => (
+    legacy ? `${primary} (or ${legacy})` : primary
+  );
+  const missing = REQUIRED_B2_VARS.filter((spec) => !valueFor(spec)).map(labelFor);
   if (missing.length > 0) {
     fail(
       `.env is missing required B2 variables: ${missing.join(", ")}`,
@@ -209,12 +226,22 @@ function checkEnv() {
     );
   }
   const placeholders = REQUIRED_B2_VARS.filter(
-    (k) => env[k] && PLACEHOLDERS.has(env[k]),
-  );
+    (spec) => valueFor(spec) && PLACEHOLDERS.has(valueFor(spec)),
+  ).map(labelFor);
   if (placeholders.length > 0) {
     fail(
       `.env still has placeholder values: ${placeholders.join(", ")}`,
       "Edit .env and replace placeholders with your real B2 credentials (https://secure.backblaze.com/app_keys.htm?utm_source=github&utm_medium=referral&utm_campaign=ai_artifacts&utm_content=b2ai-gpt-realtime-whisper-live-transcript-redactor)",
+    );
+  }
+  if (
+    env.B2_REGION &&
+    !PLACEHOLDERS.has(env.B2_REGION) &&
+    !B2_REGION_PATTERN.test(env.B2_REGION)
+  ) {
+    fail(
+      `B2_REGION is invalid: ${env.B2_REGION}`,
+      "Use a Backblaze region token such as `us-west-004`; do not include URLs, slashes, whitespace, #, ?, or @",
     );
   }
 

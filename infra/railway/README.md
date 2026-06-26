@@ -24,11 +24,20 @@ Set these on the API service:
 
 | Variable | Value |
 |----------|-------|
-| `B2_ENDPOINT` | Your B2 S3 endpoint |
-| `B2_KEY_ID` | Your B2 key ID |
+| `B2_APPLICATION_KEY_ID` | Your B2 key ID |
 | `B2_APPLICATION_KEY` | Your B2 key |
 | `B2_BUCKET_NAME` | Your bucket name |
+| `B2_REGION` | Your B2 bucket region |
+| `B2_PUBLIC_URL_BASE` | Optional public bucket URL base for direct object links |
 | `API_CORS_ORIGINS` | Your web service URL (e.g., `https://web-production-xxx.up.railway.app`) |
+
+During the migration to standardized B2 names, the API still accepts
+`B2_KEY_ID` as a fallback for `B2_APPLICATION_KEY_ID`, ignores leftover
+`B2_ENDPOINT`, and accepts `B2_PUBLIC_URL` as a fallback for
+`B2_PUBLIC_URL_BASE`. For rolling deploys, set both old and new variables,
+deploy the new API, then remove the old variables after every old API
+instance has exited. Prefer the standardized names above for all new
+Railway variables.
 
 Set this on the Web service:
 
