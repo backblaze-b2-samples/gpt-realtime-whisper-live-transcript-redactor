@@ -44,6 +44,11 @@ On finalize the backend writes a privacy-default session bundle to B2.
          - PutObject audio.<ext>              (opt-in)
 ```
 
+When `pii` mode is enabled, `redact_segment` calls
+`service/redaction_detectors.py::detect_pii_llm`, which delegates to
+`repo/openai_redactor.py` for chat-completions PII span extraction. The
+`secrets` and `glossary` modes stay deterministic inside the detector layer.
+
 ### Invariants of the pipeline
 
 1. **The session manifest is the source of truth.** Derived state (does
