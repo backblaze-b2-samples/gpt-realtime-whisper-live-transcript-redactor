@@ -5,7 +5,10 @@ Reliability expectations and practices for this project.
 
 ## Health Checks
 
-- `GET /health` verifies B2 connectivity and returns `healthy` or `degraded`
+- `GET /health` verifies B2 connectivity, OpenAI Realtime reachability, and
+  the configured chat-completions redaction model
+- The response includes distinct `openai_realtime_reachable` and
+  `openai_redaction_reachable` fields, plus aggregate `openai_reachable`
 - Health endpoint is always available, even when B2 is down
 
 ## Error Handling

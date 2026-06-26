@@ -155,9 +155,10 @@ class OpenAIRealtimeClient:
 async def check_reachable() -> bool:
     """Cheap sanity check for the dashboard's AI-service health probe.
 
-    A non-blocking HEAD on the public REST endpoint is enough — failing
-    here means either no key, no network, or upstream outage. Returns
-    False on any error; never raises.
+    A non-blocking HEAD on the configured REST endpoint is enough; the
+    realtime WebSocket uses a separate URL, but both dependencies share
+    the same API key and OpenAI REST base in proxied environments.
+    Returns False on any error; never raises.
     """
     if not settings.openai_api_key:
         return False
@@ -167,8 +168,9 @@ async def check_reachable() -> bool:
         return False
     try:
         async with httpx.AsyncClient(timeout=2.0) as client:
+            api_base = settings.openai_api_base.rstrip("/")
             resp = await client.head(
-                "https://api.openai.com/v1/models",
+                f"{api_base}/models",
                 headers={
                     "Authorization": f"Bearer {settings.openai_api_key}",
                     "User-Agent": (
@@ -176,8 +178,6 @@ async def check_reachable() -> bool:
                     ),
                 },
             )
-        # 401 still counts as "reachable" — the service is up, the key is
-        # just bad. That's a config problem we want surfaced separately.
-        return resp.status_code < 500
+        return 200 <= resp.status_code < 300
     except Exception:
         return False
