@@ -1,7 +1,7 @@
 # Plan: `gpt-realtime-whisper-live-transcript-redactor`
 
 > **Source of truth:** the starter kit lives at
-> `.claude/scratch/vcsk-10a0840f-d234-4ee7-a540-3899a6e8afa6/` (a fresh
+> `.claude/scratch/vc-sample-10a0840f-d234-4ee7-a540-3899a6e8afa6/` (a fresh
 > clone of `vibe-coding-starter-kit`, made by Phase 0 of this skill).
 > Every reference to "the starter kit" below means that scratch path.
 >
