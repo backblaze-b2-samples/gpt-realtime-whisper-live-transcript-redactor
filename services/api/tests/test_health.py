@@ -8,12 +8,23 @@ from app.repo import openai_realtime_client, openai_redactor
 
 
 class _Response:
-    status_code = 200
+    def __init__(self, status_code: int = 200) -> None:
+        self.status_code = status_code
+
+    def raise_for_status(self) -> None:
+        if self.status_code >= 400:
+            raise RuntimeError("failed")
+
+    def json(self):
+        return {"choices": [{"message": {"content": '{"entities": []}'}}]}
 
 
 class _OpenAIProbeClient:
-    def __init__(self, seen: list[tuple[str, str]]) -> None:
+    def __init__(
+        self, seen: list[tuple[str, str]], status_code: int = 200
+    ) -> None:
         self.seen = seen
+        self.status_code = status_code
 
     async def __aenter__(self):
         return self
@@ -23,11 +34,15 @@ class _OpenAIProbeClient:
 
     async def head(self, url: str, **_kwargs):
         self.seen.append(("HEAD", url))
-        return _Response()
+        return _Response(self.status_code)
 
     async def get(self, url: str, **_kwargs):
         self.seen.append(("GET", url))
-        return _Response()
+        return _Response(self.status_code)
+
+    async def post(self, url: str, **_kwargs):
+        self.seen.append(("POST", url))
+        return _Response(self.status_code)
 
 
 @pytest.mark.asyncio
@@ -66,7 +81,7 @@ async def test_health_reports_distinct_openai_dependencies(client, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_openai_reachability_uses_configured_base(monkeypatch):
+async def test_openai_calls_use_configured_base(monkeypatch):
     seen: list[tuple[str, str]] = []
 
     monkeypatch.setattr(settings, "openai_api_key", "test-key")
@@ -76,10 +91,24 @@ async def test_openai_reachability_uses_configured_base(monkeypatch):
 
     assert await openai_realtime_client.check_reachable()
     assert await openai_redactor.check_reachable()
+    assert await openai_redactor.detect_pii_entities("plain transcript") == []
     assert seen == [
         ("HEAD", "https://proxy.example/v1/models"),
         ("GET", "https://proxy.example/v1/models/redaction-model"),
+        ("POST", "https://proxy.example/v1/chat/completions"),
     ]
+
+
+@pytest.mark.asyncio
+async def test_realtime_reachability_requires_successful_status(monkeypatch):
+    monkeypatch.setattr(settings, "openai_api_key", "test-key")
+    monkeypatch.setattr(
+        httpx,
+        "AsyncClient",
+        lambda timeout: _OpenAIProbeClient([], status_code=401),
+    )
+
+    assert not await openai_realtime_client.check_reachable()
 
 
 @pytest.mark.asyncio

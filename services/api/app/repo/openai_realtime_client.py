@@ -178,8 +178,6 @@ async def check_reachable() -> bool:
                     ),
                 },
             )
-        # 401 still counts as "reachable" — the service is up, the key is
-        # just bad. That's a config problem we want surfaced separately.
-        return resp.status_code < 500
+        return 200 <= resp.status_code < 300
     except Exception:
         return False

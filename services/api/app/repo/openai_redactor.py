@@ -97,8 +97,9 @@ async def detect_pii_entities(text: str) -> list[PiiEntity]:
         async with httpx.AsyncClient(
             timeout=settings.redaction_pii_timeout_s
         ) as client:
+            api_base = settings.openai_api_base.rstrip("/")
             resp = await client.post(
-                f"{settings.openai_api_base}/chat/completions",
+                f"{api_base}/chat/completions",
                 headers={
                     "Authorization": f"Bearer {settings.openai_api_key}",
                     "User-Agent": (
