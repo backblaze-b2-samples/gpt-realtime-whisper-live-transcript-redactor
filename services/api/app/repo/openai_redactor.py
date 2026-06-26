@@ -129,8 +129,9 @@ async def check_reachable() -> bool:
         return False
     try:
         async with httpx.AsyncClient(timeout=2.0) as client:
+            api_base = settings.openai_api_base.rstrip("/")
             resp = await client.get(
-                f"{settings.openai_api_base}/models/{settings.redaction_pii_model}",
+                f"{api_base}/models/{settings.redaction_pii_model}",
                 headers={
                     "Authorization": f"Bearer {settings.openai_api_key}",
                     "User-Agent": (
