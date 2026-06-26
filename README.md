@@ -112,7 +112,7 @@ See `.env.example` for the full annotated file.
 - TanStack Query — caching, dedup, retry, stale-while-revalidate for every fetch
 - Python 3.11+ (< 3.13 — see Quick Start footnote), FastAPI, boto3, Pydantic v2, `websockets` (OpenAI Realtime upstream)
 - Backblaze B2 (S3-compatible object storage)
-- OpenAI Realtime API (transcription only, no LLM redaction in v1)
+- OpenAI API (Realtime transcription + chat-completions PII extraction)
 - pnpm workspaces (monorepo)
 
 ## Commands

@@ -23,6 +23,7 @@ On finalize the backend writes a privacy-default session bundle to B2.
   - Session state machine (`service/realtime_session.py`)
   - B2 session-prefix adapter (`repo/b2_sessions.py`)
   - OpenAI Realtime adapter (`repo/openai_realtime_client.py`)
+  - OpenAI PII extraction adapter (`repo/openai_redactor.py`)
 - **packages/shared/** — TypeScript type definitions mirroring the Pydantic models
 
 ## Realtime Pipeline
@@ -69,7 +70,7 @@ types/     Pydantic models — sessions, transcripts, redactions, exports, gloss
   |
 config/    Settings (pydantic-settings) — B2 + OpenAI + redaction defaults
   |
-repo/      Data access — b2_client, b2_sessions, openai_realtime_client
+repo/      Data access — b2_client, b2_sessions, openai_realtime_client, openai_redactor
   |
 service/   Business logic — sessions, realtime_session, redaction, redaction_detectors, exports, glossary, upload, files, metadata
   |
@@ -108,7 +109,8 @@ Session id pattern: `^[0-9]{14}-[A-Za-z0-9]{6,12}$` (timestamp + url-safe suffix
 ## Boundary Invariants
 
 - **No external SDK leakage** — `boto3` lives in `repo/b2_client.py` and
-  `repo/b2_sessions.py`; `websockets` lives in `repo/openai_realtime_client.py`.
+  `repo/b2_sessions.py`; `websockets` lives in `repo/openai_realtime_client.py`;
+  OpenAI chat-completions PII extraction lives in `repo/openai_redactor.py`.
 - **No raw dicts at boundaries** — all data crossing layer boundaries
   uses typed Pydantic models.
 - **No mutable globals** — settings is read-only after init.
@@ -129,6 +131,8 @@ Session id pattern: `^[0-9]{14}-[A-Za-z0-9]{6,12}$` (timestamp + url-safe suffix
   exports, glossary).
 - **OpenAI Realtime API** — drives streaming transcription via
   `repo/openai_realtime_client.py`. Reachability is probed by `/health`.
+- **OpenAI chat completions** — extracts PII spans for the redaction layer via
+  `repo/openai_redactor.py`.
 
 ## Observability
 
@@ -145,6 +149,7 @@ Session id pattern: `^[0-9]{14}-[A-Za-z0-9]{6,12}$` (timestamp + url-safe suffix
 - Detectors: `services/api/app/service/redaction_detectors.py`
 - B2 session adapter: `services/api/app/repo/b2_sessions.py`
 - OpenAI Realtime adapter: `services/api/app/repo/openai_realtime_client.py`
+- OpenAI PII extraction adapter: `services/api/app/repo/openai_redactor.py`
 - Exports: `services/api/app/service/exports.py`
 - Pydantic models: `services/api/app/types/`
 - Structural tests: `services/api/tests/test_structure.py`
