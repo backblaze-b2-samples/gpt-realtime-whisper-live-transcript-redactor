@@ -5,7 +5,7 @@ Stream microphone audio through OpenAI's GPT-Realtime-Whisper, redact PII / secr
 
 **What you get out of the box:**
 - Live `/record` page that streams the mic to OpenAI Realtime and renders transcript deltas with inline redaction chips
-- Three-layer deterministic redaction (PII regex, secret patterns, custom glossary) with severity-tagged detections
+- Layered redaction: LLM-backed PII extraction plus deterministic secret-pattern and custom-glossary detectors, with severity-tagged detections
 - B2-backed session bundles: redacted transcript + redaction manifest + append-only audit trail are always written; raw audio + original transcript only on opt-in
 - Per-session library at `/sessions`, full bucket explorer at `/files`, and a settings page with a custom-glossary editor
 - Export pipeline producing redacted `.txt`, `.srt`, and `.vtt` from the redacted transcript JSON
@@ -96,7 +96,7 @@ See `.env.example` for the full annotated file.
 ## Core Features
 
 - [Realtime Transcription](docs/features/realtime-transcription.md) — WebSocket bridge from browser PCM16 to OpenAI Realtime
-- [Layered Redaction](docs/features/redaction.md) — three deterministic detectors (PII, secrets, glossary) with severity
+- [Layered Redaction](docs/features/redaction.md) — LLM-backed PII extraction plus deterministic secrets and glossary detectors
 - [Session Library](docs/features/session-library.md) — the sample-scoped asset explorer at `/sessions`
 - [Audit Trail](docs/features/audit-trail.md) — append-only manifest event log + sha256 hashes for verification
 - [Exports](docs/features/exports.md) — redacted-only `.txt`, `.srt`, `.vtt`

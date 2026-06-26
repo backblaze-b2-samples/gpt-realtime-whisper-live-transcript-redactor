@@ -130,16 +130,20 @@ Session id pattern: `^[0-9]{14}-[A-Za-z0-9]{6,12}$` (timestamp + url-safe suffix
 - **Backblaze B2 S3 API** — storage of record for everything (sessions,
   exports, glossary).
 - **OpenAI Realtime API** — drives streaming transcription via
-  `repo/openai_realtime_client.py`. Reachability is probed by `/health`.
+  `repo/openai_realtime_client.py`. Reachability is exposed by the
+  `openai_realtime_reachable` field on `/health`.
 - **OpenAI chat completions** — extracts PII spans for the redaction layer via
-  `repo/openai_redactor.py`.
+  `repo/openai_redactor.py`. The configured redaction model is exposed by the
+  `openai_redaction_reachable` field on `/health`.
 
 ## Observability
 
 - Structured JSON logging on all requests with `request_id`
 - Request timing middleware
 - `/metrics` (Prometheus format)
-- `/health` reports both `b2_connected` and `openai_reachable`
+- `/health` reports `b2_connected`, `openai_realtime_reachable`, and
+  `openai_redaction_reachable`. The aggregate `openai_reachable` field remains
+  for clients that only need to know whether both OpenAI dependencies are up.
 
 ## Canonical Files
 
