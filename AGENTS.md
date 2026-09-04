@@ -27,6 +27,7 @@ services/api/                      FastAPI backend (layered)
   app/repo/b2_client.py            B2 S3 adapter (legacy file API)
   app/repo/b2_sessions.py          B2 session-prefix adapter (manifest / transcripts / exports / glossary)
   app/repo/openai_realtime_client.py  OpenAI Realtime websocket adapter
+  app/repo/openai_redactor.py      OpenAI chat-completions PII span extraction adapter
   app/service/redaction.py         Three-layer redaction orchestrator
   app/service/redaction_detectors.py  PII / secrets / glossary detectors
   app/service/sessions.py          Session id, library, stats, delete cascade
