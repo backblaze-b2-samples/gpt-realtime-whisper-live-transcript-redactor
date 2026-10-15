@@ -97,8 +97,9 @@ async def detect_pii_entities(text: str) -> list[PiiEntity]:
         async with httpx.AsyncClient(
             timeout=settings.redaction_pii_timeout_s
         ) as client:
+            api_base = settings.openai_api_base.rstrip("/")
             resp = await client.post(
-                f"{settings.openai_api_base}/chat/completions",
+                f"{api_base}/chat/completions",
                 headers={
                     "Authorization": f"Bearer {settings.openai_api_key}",
                     "User-Agent": (
@@ -115,6 +116,33 @@ async def detect_pii_entities(text: str) -> list[PiiEntity]:
         return []
 
     return _parse_entities(raw)
+
+
+async def check_reachable() -> bool:
+    """Return whether the configured PII model can be resolved.
+
+    This is intentionally cheaper than a chat-completions request but
+    still specific to the redaction dependency: a missing key, invalid
+    key, inaccessible model, or upstream outage marks the redaction
+    layer degraded.
+    """
+    if not settings.openai_api_key:
+        return False
+    try:
+        async with httpx.AsyncClient(timeout=2.0) as client:
+            api_base = settings.openai_api_base.rstrip("/")
+            resp = await client.get(
+                f"{api_base}/models/{settings.redaction_pii_model}",
+                headers={
+                    "Authorization": f"Bearer {settings.openai_api_key}",
+                    "User-Agent": (
+                        "b2ai-gpt-realtime-whisper-live-transcript-redactor"
+                    ),
+                },
+            )
+        return resp.status_code == 200
+    except Exception:
+        return False
 
 
 def _parse_entities(raw: object) -> list[PiiEntity]:
